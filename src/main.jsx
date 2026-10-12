@@ -16,25 +16,18 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import { auth, firebaseReady } from './firebase';
-import { defaultProposal } from './defaultProposal';
+import { createBlankProposal, defaultProposal } from './defaultProposal';
 import {
   createProposal,
   deleteProposal,
   duplicateProposal,
   getProposalById,
-  getProposalBySlug,
+  getPublicProposal,
   listProposals,
   updateProposal
 } from './proposalService';
 import { uploadProposalMedia } from './mediaService';
-
-const cleanSlug = (value) => String(value || '')
-  .toLowerCase()
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/^-+|-+$/g, '')
-  .slice(0, 80);
+import { validatePublication } from './proposalValidation';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
@@ -280,6 +273,7 @@ function normalizeCalendarImport(raw = '') {
 
 function App() {
   const path = window.location.pathname;
+  if (path === '/demo' && !firebaseReady) return <ProposalPage proposal={defaultProposal} />;
   if (path.startsWith('/p/')) return <PublicProposal slug={path.replace('/p/', '').replace(/\/$/, '')} />;
   if (path.startsWith('/admin/edit/')) return <AdminGate><ProposalEditor id={path.replace('/admin/edit/', '').replace(/\/$/, '')} /></AdminGate>;
   if (path.startsWith('/admin')) return <AdminGate><Dashboard /></AdminGate>;
@@ -296,7 +290,7 @@ function Home() {
         <p>Panel interno para crear propuestas comerciales con estrategia, entregables, referencias visuales y URL pública por cliente.</p>
         <div className="home-actions">
           <a className="btn btn-primary" href="/admin">Entrar al panel</a>
-          <a className="btn btn-ghost" href="/p/dra-mabel-limon">Ver ejemplo público</a>
+          {!firebaseReady && <a className="btn btn-ghost" href="/demo">Ver ejemplo</a>}
         </div>
       </div>
     </div>
@@ -370,37 +364,60 @@ function LoadingScreen({ label }) {
 function Dashboard() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   async function refresh() {
     setLoading(true);
-    setItems(await listProposals());
-    setLoading(false);
+    setError('');
+    try {
+      setItems(await listProposals());
+    } catch {
+      setError('No se pudieron cargar las propuestas. Revisa tu acceso y la conexión con Firebase.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { refresh(); }, []);
 
   async function createNew() {
-    const id = await createProposal({ ...defaultProposal, slug: cleanSlug(defaultProposal.clientName) });
-    window.location.href = `/admin/edit/${id}`;
+    try {
+      const id = await createProposal(createBlankProposal());
+      window.location.href = `/admin/edit/${id}`;
+    } catch {
+      setError('No se pudo crear la propuesta. Revisa los permisos de Firebase.');
+    }
   }
 
   async function seedExample() {
     const exists = items.some(i => i.slug === 'dra-mabel-limon');
     if (exists) return;
-    await createProposal(defaultProposal);
-    await refresh();
+    try {
+      await createProposal(defaultProposal);
+      await refresh();
+    } catch {
+      setError('No se pudo cargar el ejemplo. Revisa los permisos de Firebase.');
+    }
   }
 
   async function duplicate(item) {
-    const id = await duplicateProposal(item);
-    window.location.href = `/admin/edit/${id}`;
+    try {
+      const id = await duplicateProposal(item);
+      window.location.href = `/admin/edit/${id}`;
+    } catch {
+      setError('No se pudo duplicar la propuesta.');
+    }
   }
 
   async function remove(id) {
     const ok = confirm('¿Seguro que quieres eliminar esta propuesta?');
     if (!ok) return;
-    await deleteProposal(id);
-    await refresh();
+    try {
+      await deleteProposal(id);
+      await refresh();
+    } catch {
+      setError('No se pudo eliminar la propuesta. Revisa tu acceso a Firebase.');
+    }
   }
 
   return (
@@ -419,6 +436,7 @@ function Dashboard() {
           </div>
         </div>
 
+        {error && <div className="error-box">{error}</div>}
         {loading ? <LoadingScreen label="Cargando propuestas" /> : (
           <div className="proposal-list">
             {items.length === 0 && <div className="empty-state">No hay propuestas todavía. Crea una nueva o carga el ejemplo de la Dra. Mabel.</div>}
@@ -427,11 +445,11 @@ function Dashboard() {
                 <div>
                   <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
                   <h3>{item.clientName || 'Sin nombre'}</h3>
-                  <p>{item.vertical || 'Sin vertical'} · /p/{item.slug}</p>
+                  <p>{item.vertical || 'Sin giro'} · {item.periodStart && item.periodEnd ? `${item.periodStart} → ${item.periodEnd}` : 'Periodo por definir'}</p>
                 </div>
                 <div className="row gap wrap-row">
                   <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
-                  <a className="icon-btn" title="Ver pública" href={`/p/${item.slug}`} target="_blank"><ExternalLink size={17} /> Ver</a>
+                  {item.status === 'published' && <a className="icon-btn" title="Abrir enlace público" href={`/p/${item.id}`} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver</a>}
                   <button className="icon-btn" onClick={() => duplicate(item)}><Copy size={17} /> Duplicar</button>
                   <button className="icon-btn danger" onClick={() => remove(item.id)}><Trash2 size={17} /> Eliminar</button>
                 </div>
@@ -460,15 +478,16 @@ function ProposalEditor({ id }) {
   const [proposal, setProposal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     getProposalById(id).then((data) => {
       if (!data) {
-        setProposal({ ...defaultProposal, slug: cleanSlug(defaultProposal.clientName) });
+        setLoadError('No encontramos esta propuesta. Vuelve al panel y ábrela desde la lista.');
       } else {
         setProposal(normalizeProposal(data));
       }
-    });
+    }).catch(() => setLoadError('No se pudo abrir la propuesta. Revisa tu acceso a Firebase.'));
   }, [id]);
 
   function updateField(field, value) {
@@ -491,14 +510,21 @@ function ProposalEditor({ id }) {
   }
 
   async function save(status = proposal.status) {
+    if (status === 'published') {
+      const error = validatePublication(proposal);
+      if (error) {
+        setMessage(error);
+        return;
+      }
+    }
     setSaving(true);
     setMessage('');
-    const payload = { ...proposal, status, slug: cleanSlug(proposal.slug || proposal.clientName) };
+    const payload = { ...proposal, status };
     delete payload.id;
     try {
       await updateProposal(id, payload);
       setProposal(prev => ({ ...prev, ...payload }));
-      setMessage(status === 'published' ? 'Propuesta publicada.' : 'Cambios guardados.');
+      setMessage(status === 'published' ? 'Cambios publicados.' : 'Cambios guardados.');
     } catch (err) {
       setMessage('Error al guardar. Revisa Firebase o conexión.');
     } finally {
@@ -506,6 +532,7 @@ function ProposalEditor({ id }) {
     }
   }
 
+  if (loadError) return <div className="not-found"><h1>{loadError}</h1><a href="/admin">Volver al panel</a></div>;
   if (!proposal) return <LoadingScreen label="Abriendo editor" />;
 
   return (
@@ -516,9 +543,9 @@ function ProposalEditor({ id }) {
           <div className="editor-topbar">
             <a className="plain-link" href="/admin"><ArrowLeft size={16} /> Volver</a>
             <div className="row gap">
-              <a className="btn btn-secondary" href={`/p/${proposal.slug}`} target="_blank"><Eye size={16} /> Vista pública</a>
-              <button className="btn btn-secondary" disabled={saving} onClick={() => save('draft')}><Save size={16} /> Guardar</button>
-              <button className="btn btn-primary" disabled={saving} onClick={() => save('published')}>{saving ? <Loader2 className="spin" size={16} /> : null} Publicar</button>
+              {proposal.status === 'published' && <a className="btn btn-secondary" href={`/p/${id}`} target="_blank" rel="noreferrer"><Eye size={16} /> Ver enlace</a>}
+              <button className="btn btn-secondary" disabled={saving} onClick={() => save()}><Save size={16} /> Guardar</button>
+              <button className="btn btn-primary" disabled={saving} onClick={() => save('published')}>{saving ? <Loader2 className="spin" size={16} /> : null} {proposal.status === 'published' ? 'Actualizar publicación' : 'Publicar'}</button>
             </div>
           </div>
           {message && <div className="save-message">{message}</div>}
@@ -526,7 +553,9 @@ function ProposalEditor({ id }) {
           <EditorSection title="Portada y estilo">
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
             <Input label="Nombre visual en portada" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
-            <Input label="URL pública / enlace" value={proposal.slug} onChange={v => updateField('slug', cleanSlug(v))} hint={`Cambia la liga pública. Guarda y abre: /p/${proposal.slug}`} />
+            <Input label="Inicio del periodo" type="date" value={proposal.periodStart || ''} onChange={v => updateField('periodStart', v)} />
+            <Input label="Fin del periodo" type="date" value={proposal.periodEnd || ''} onChange={v => updateField('periodEnd', v)} />
+            <p className="muted">El enlace único se habilita al publicar. Puedes duplicar la estrategia para otro mes sin repetir el calendario anterior.</p>
             <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
             <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
@@ -680,11 +709,11 @@ function normalizeProposal(data) {
   return {
     ...defaultProposal,
     ...data,
-    pillars: data.pillars?.length ? data.pillars : defaultProposal.pillars,
-    references: data.references?.length ? data.references : defaultProposal.references,
-    deliverables: data.deliverables?.length ? data.deliverables : defaultProposal.deliverables,
-    monthPlan: data.monthPlan?.length ? data.monthPlan : defaultProposal.monthPlan,
-    steps: data.steps?.length ? data.steps : defaultProposal.steps
+    pillars: Array.isArray(data.pillars) ? data.pillars : defaultProposal.pillars,
+    references: Array.isArray(data.references) ? data.references : defaultProposal.references,
+    deliverables: Array.isArray(data.deliverables) ? data.deliverables : defaultProposal.deliverables,
+    monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : defaultProposal.monthPlan,
+    steps: Array.isArray(data.steps) ? data.steps : defaultProposal.steps
   };
 }
 
@@ -835,18 +864,20 @@ function Textarea({ label, value, onChange }) {
 function PublicProposal({ slug }) {
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    getProposalBySlug(slug).then((data) => {
-      setProposal(data ? normalizeProposal(data) : null);
-      setLoading(false);
-    });
+    setLoading(true);
+    setFailed(false);
+    getPublicProposal(slug)
+      .then(data => setProposal(data ? normalizeProposal(data) : null))
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   }, [slug]);
 
   if (loading) return <LoadingScreen label="Cargando propuesta" />;
   if (!proposal) {
-    if (slug === 'dra-mabel-limon' && !firebaseReady) return <ProposalPage proposal={defaultProposal} />;
-    return <div className="not-found"><h1>Propuesta no encontrada</h1><p>Revisa que el link esté escrito correctamente.</p><a href="/admin">Ir al panel</a></div>;
+    return <div className="not-found"><h1>Propuesta no disponible</h1><p>{failed ? 'No pudimos cargar el enlace. Inténtalo de nuevo en unos minutos.' : 'Revisa el enlace o pide la versión publicada a Euphoria.'}</p></div>;
   }
   return <ProposalPage proposal={proposal} />;
 }
@@ -889,7 +920,7 @@ function ProposalPage({ proposal, compact = false }) {
 
         <div className="wrap luxe-hero-grid">
           <div className="luxe-hero-copy">
-            <div className="luxe-chip">{proposal.heroEyebrow || 'Estrategia digital · 2026'}</div>
+            <div className="luxe-chip">{proposal.heroEyebrow || (proposal.periodStart && proposal.periodEnd ? `Propuesta mensual · ${formatDateRange([parseLocalDate(proposal.periodStart), parseLocalDate(proposal.periodEnd)])}` : 'Propuesta mensual')}</div>
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
             <p>{proposal.positioning}</p>
             <div className="luxe-hero-actions">
@@ -907,7 +938,7 @@ function ProposalPage({ proposal, compact = false }) {
         <div className="wrap luxe-hero-footer">
           <span>{proposal.clientName}</span>
           <span>{proposal.city}</span>
-          <span>{new Date().getFullYear()}</span>
+          <span>{proposal.periodStart?.slice(0, 4) || new Date().getFullYear()}</span>
         </div>
       </header>
 
@@ -923,7 +954,7 @@ function ProposalPage({ proposal, compact = false }) {
               <div className="luxe-proof-grid">
                 <LuxeMetric title="Autoridad" text={proposal.diagnosisText} />
                 <LuxeMetric title="Confianza" text={proposal.audienceNeeds} />
-                <LuxeMetric title="Agenda" text={proposal.agendaText || 'Cada pieza se diseña para mover al paciente de interés a valoración.'} />
+                <LuxeMetric title="Agenda" text={proposal.agendaText || ''} />
               </div>
             </div>
           </div>
@@ -982,7 +1013,7 @@ function ProposalPage({ proposal, compact = false }) {
               </div>
               <p>El contenido no solo se produce: se organiza con ritmo, intención comercial y consistencia mensual.</p>
             </div>
-            <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} />
+            <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} periodStart={proposal.periodStart} periodEnd={proposal.periodEnd} />
           </div>
         </section>
 
@@ -1017,7 +1048,7 @@ function ProposalPage({ proposal, compact = false }) {
   );
 }
 
-function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [] }) {
+function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [], periodStart = '', periodEnd = '' }) {
   const weekdayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   const filled = (plan || []).filter(item => item?.piece || item?.topic || item?.date);
   const datedItems = filled
@@ -1025,14 +1056,12 @@ function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [] }) 
     .filter(item => item.parsedDate);
 
   const hasRealDates = datedItems.length > 0;
-  const anchorDate = hasRealDates
+  const anchorDate = parseLocalDate(periodStart) || (hasRealDates
     ? new Date(Math.min(...datedItems.map(item => item.parsedDate.getTime())))
-    : new Date(2026, 5, 1);
-  const firstDay = hasRealDates
-    ? addDays(anchorDate, -anchorDate.getDay())
-    : addDays(anchorDate, -anchorDate.getDay());
+    : new Date());
+  const firstDay = addDays(anchorDate, -anchorDate.getDay());
 
-  const datedKey = (date) => date.toISOString().slice(0, 10);
+  const datedKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   const placements = new Map();
 
   function addPlacement(key, item) {
@@ -1051,7 +1080,11 @@ function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [] }) 
     });
   }
 
-  const cells = Array.from({ length: 35 }, (_, index) => {
+  const lastDate = parseLocalDate(periodEnd) || (datedItems.length
+    ? new Date(Math.max(...datedItems.map(item => item.parsedDate.getTime())))
+    : addDays(anchorDate, 34));
+  const daysToShow = Math.min(56, Math.max(35, Math.ceil((Math.max(lastDate, firstDay) - firstDay + 86400000) / 604800000) * 7));
+  const cells = Array.from({ length: daysToShow }, (_, index) => {
     const date = addDays(firstDay, index);
     const key = datedKey(date);
     return { date, key, items: placements.get(key) || [] };
@@ -1071,7 +1104,7 @@ function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [] }) 
         <div>
           <span>Calendario del cliente</span>
           <strong>{clientName || 'Cliente'}</strong>
-          <p>{hasRealDates ? formatDateRange(datedItems.map(item => item.parsedDate)) : 'Vista editorial de ejemplo. Agrega fechas para mostrar el calendario real.'}</p>
+          <p>{periodStart && periodEnd ? formatDateRange([parseLocalDate(periodStart), parseLocalDate(periodEnd)]) : hasRealDates ? formatDateRange(datedItems.map(item => item.parsedDate)) : 'Agrega fechas para mostrar el calendario real.'}</p>
         </div>
         <div className="luxe-calendar-meta luxe-calendar-meta-simple">
           <div className="luxe-calendar-stat">
