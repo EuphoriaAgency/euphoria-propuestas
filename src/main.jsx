@@ -662,10 +662,9 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <EditorSection title="06 · Cierre y CTA">
+          <EditorSection title="06 · Cierre">
             <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
             <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
-            <Input label="Link de WhatsApp" value={proposal.whatsappUrl} onChange={v => updateField('whatsappUrl', v)} />
           </EditorSection>
         </section>
 
@@ -894,7 +893,6 @@ function ProposalPage({ proposal, compact = false }) {
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
             <p>{proposal.positioning}</p>
             <div className="luxe-hero-actions">
-              {proposal.whatsappUrl && <a className="luxe-btn" href={proposal.whatsappUrl} target="_blank" rel="noreferrer">Confirmar propuesta</a>}
               <span>Preparado por Euphoria Agency</span>
             </div>
           </div>
@@ -1012,7 +1010,6 @@ function ProposalPage({ proposal, compact = false }) {
           <span className="luxe-kicker">Cierre</span>
           <h2>{proposal.ctaTitle || '¿Lista para empezar?'}</h2>
           <p>{proposal.ctaText}</p>
-          {proposal.whatsappUrl && <a className="luxe-btn" href={proposal.whatsappUrl} target="_blank" rel="noreferrer">Confirmar por WhatsApp</a>}
           <div className="luxe-close-foot">Euphoria Agency · {proposal.city}</div>
         </div>
       </footer>
