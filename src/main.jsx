@@ -706,14 +706,15 @@ function ProposalEditor({ id }) {
 }
 
 function normalizeProposal(data) {
+  const empty = createBlankProposal();
   return {
-    ...defaultProposal,
+    ...empty,
     ...data,
-    pillars: Array.isArray(data.pillars) ? data.pillars : defaultProposal.pillars,
-    references: Array.isArray(data.references) ? data.references : defaultProposal.references,
-    deliverables: Array.isArray(data.deliverables) ? data.deliverables : defaultProposal.deliverables,
-    monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : defaultProposal.monthPlan,
-    steps: Array.isArray(data.steps) ? data.steps : defaultProposal.steps
+    pillars: Array.isArray(data.pillars) ? data.pillars : empty.pillars,
+    references: Array.isArray(data.references) ? data.references : empty.references,
+    deliverables: Array.isArray(data.deliverables) ? data.deliverables : empty.deliverables,
+    monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : empty.monthPlan,
+    steps: Array.isArray(data.steps) ? data.steps : empty.steps
   };
 }
 
