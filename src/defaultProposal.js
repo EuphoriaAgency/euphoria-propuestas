@@ -88,3 +88,43 @@ export const defaultProposal = {
   ctaTitle: '¿Lista para empezar?',
   ctaText: 'Cuando nos des luz verde, arrancamos con la planeación y producción del primer mes.'
 };
+
+// El ejemplo anterior se conserva solo para la acción explícita «Cargar ejemplo».
+// Una propuesta nueva nunca debe heredar datos, piezas o referencias de otra clienta.
+export function createBlankProposal() {
+  return {
+    ...defaultProposal,
+    slug: '',
+    clientName: '',
+    clientDisplayName: '',
+    vertical: '',
+    city: '',
+    themePreset: 'black',
+    periodStart: '',
+    periodEnd: '',
+    heroEyebrow: '',
+    positioning: '',
+    heroMediaBackUrl: '',
+    heroMediaBackHandle: '',
+    heroMediaUrl: '',
+    heroMediaHandle: '',
+    heroMediaFrontUrl: '',
+    heroMediaFrontHandle: '',
+    diagnosisTitle: '',
+    diagnosisText: '',
+    strategyTitle: '',
+    strategyText: '',
+    audienceText: '',
+    audienceLookingFor: '',
+    audienceNeeds: '',
+    agendaText: '',
+    creativeApproach: '',
+    pillars: [],
+    references: [],
+    deliverables: [],
+    monthPlan: [],
+    steps: [],
+    ctaTitle: '¿Listos para empezar?',
+    ctaText: 'Cuando nos des luz verde, coordinamos el siguiente paso.'
+  };
+}
