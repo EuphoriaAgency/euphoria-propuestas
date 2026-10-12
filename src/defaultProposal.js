@@ -85,7 +85,6 @@ export const defaultProposal = {
     { title: 'Calendario de contenido', text: 'Entregamos el plan mensual con fechas de publicación por pilar.' },
     { title: 'Publicación y medición', text: 'Producimos, publicamos y revisamos resultados cada mes.' }
   ],
-  whatsappUrl: 'https://wa.me/526621234567',
   ctaTitle: '¿Lista para empezar?',
   ctaText: 'Cuando nos des luz verde, arrancamos con la planeación y producción del primer mes.'
 };
