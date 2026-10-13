@@ -1059,7 +1059,7 @@ function ProposalPage({ proposal, compact = false }) {
           <div className="luxe-nav-meta">{proposal.vertical}</div>
         </div>
 
-        <div className={`wrap luxe-hero-grid${heroCenter ? '' : ' no-media'}`}>
+        <div className="wrap luxe-hero-grid">
           <div className="luxe-hero-copy">
             {proposal.heroEyebrow?.trim() && <div className="luxe-chip">{proposal.heroEyebrow}</div>}
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
