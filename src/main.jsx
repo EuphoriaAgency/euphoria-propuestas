@@ -71,6 +71,17 @@ function hexToRgba(hex = '#8b1628', alpha = 0.28, fallback = '#8b1628') {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function contrastTextFor(hex) {
+  const color = normalizeHexColor(hex);
+  const channels = [1, 3, 5].map(start => {
+    const value = parseInt(color.slice(start, start + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  const darkTextLuminance = 0.005605;
+  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (darkTextLuminance + 0.05) ? '#fff' : '#111';
+}
+
 function getThemeVars(themePreset, customAccent = '#8b1628', customAccentDark = '') {
   const base = getPalette(themePreset);
   const isCustom = themePreset === 'custom';
@@ -85,6 +96,7 @@ function getThemeVars(themePreset, customAccent = '#8b1628', customAccentDark = 
     '--gold': accent,
     '--lux-red': accent,
     '--lux-red-deep': accentDark,
+    '--calendar-video-text': contrastTextFor(accent),
     '--accent-shadow': hexToRgba(accent, 0.24, base.accent),
     '--accent-dark-shadow': hexToRgba(accentDark, 0.22, base.accentDark),
     '--hero-glow': glow,
@@ -1239,11 +1251,12 @@ function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [], pe
   });
 
   function toneFor(item = {}) {
-    const text = `${item?.pillar || ''} ${item?.piece || ''} ${item?.type || ''}`.toLowerCase();
-    if (text.includes('promo')) return 'accent';
-    if (text.includes('foto') || text.includes('photo') || text.includes('brand')) return 'soft';
-    if (text.includes('post') || text.includes('carrusel')) return 'neutral';
-    return 'dark';
+    for (const value of [item.type, item.piece]) {
+      const kind = String(value || '').toLowerCase();
+      if (/reel|video|vídeo|ugc|clip/.test(kind)) return 'video';
+      if (/post|carrusel|carousel|foto|photo|imagen|gráfico|grafico|estátic|estatic|static/.test(kind)) return 'static';
+    }
+    return 'other';
   }
 
   return (
