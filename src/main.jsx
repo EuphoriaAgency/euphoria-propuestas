@@ -299,11 +299,11 @@ function Home() {
     <div className="home-shell">
       <div className="home-card">
         <div className="brand-mark">Euphoria<span>.</span></div>
-        <p className="eyebrow-red">Sistema de propuestas</p>
-        <h1>Propuestas web premium, editables y listas para compartir.</h1>
-        <p>Panel interno para crear propuestas comerciales con estrategia, entregables, referencias visuales y URL pública por cliente.</p>
+        <p className="eyebrow-red">Propuestas de contenido</p>
+        <h1>Tu propuesta de Euphoria</h1>
+        <p>Abre el enlace personalizado que te compartimos para consultar tu propuesta.</p>
         <div className="home-actions">
-          <a className="btn btn-primary" href="/admin">Entrar al panel</a>
+          <a className="plain-link" href="/admin">Acceso al equipo</a>
           {!firebaseReady && <a className="btn btn-ghost" href="/demo">Ver ejemplo</a>}
         </div>
       </div>
@@ -1008,6 +1008,12 @@ function PublicProposal({ slug }) {
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    if (!proposal) return;
+    document.title = `Euphoria · Propuesta para ${proposal.clientDisplayName || proposal.clientName || 'ti'}`;
+    return () => { document.title = 'Euphoria · Propuestas'; };
+  }, [proposal]);
 
   if (loading) return <LoadingScreen label="Cargando propuesta" />;
   if (!proposal) {
