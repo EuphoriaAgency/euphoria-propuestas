@@ -26,9 +26,10 @@ import {
   listProposals,
   updateProposal
 } from './proposalService';
-import { uploadProposalMedia } from './mediaService';
+import { checkProposalStorage, uploadProposalMedia } from './mediaService';
 import { getEmbed } from './mediaEmbed';
 import { validatePublication } from './proposalValidation';
+import { resolveProposalPeriod } from './proposalPeriod';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
@@ -446,7 +447,7 @@ function Dashboard() {
                 <div>
                   <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
                   <h3>{item.clientName || 'Sin nombre'}</h3>
-                  <p>{item.vertical || 'Sin giro'} · {item.periodStart && item.periodEnd ? `${item.periodStart} → ${item.periodEnd}` : 'Periodo por definir'}</p>
+                  <p>{item.heroEyebrow || item.vertical || 'Propuesta'} · {(() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
                 </div>
                 <div className="row gap wrap-row">
                   <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
@@ -480,6 +481,8 @@ function ProposalEditor({ id }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [activeUpload, setActiveUpload] = useState(null);
+  const [storageCheck, setStorageCheck] = useState(null);
 
   useEffect(() => {
     getProposalById(id).then((data) => {
@@ -490,6 +493,13 @@ function ProposalEditor({ id }) {
       }
     }).catch(() => setLoadError('No se pudo abrir la propuesta. Revisa tu acceso a Firebase.'));
   }, [id]);
+
+  async function refreshStorageCheck() {
+    setStorageCheck({ state: 'checking' });
+    setStorageCheck(await checkProposalStorage());
+  }
+
+  useEffect(() => { refreshStorageCheck(); }, []);
 
   function updateField(field, value) {
     setProposal(prev => ({ ...prev, [field]: value }));
@@ -545,22 +555,22 @@ function ProposalEditor({ id }) {
             <a className="plain-link" href="/admin"><ArrowLeft size={16} /> Volver</a>
             <div className="row gap">
               {proposal.status === 'published' && <a className="btn btn-secondary" href={`/p/${id}`} target="_blank" rel="noreferrer"><Eye size={16} /> Ver enlace</a>}
-              <button className="btn btn-secondary" disabled={saving} onClick={() => save()}><Save size={16} /> Guardar</button>
-              <button className="btn btn-primary" disabled={saving} onClick={() => save('published')}>{saving ? <Loader2 className="spin" size={16} /> : null} {proposal.status === 'published' ? 'Actualizar publicación' : 'Publicar'}</button>
+              <button className="btn btn-secondary" disabled={saving || Boolean(activeUpload)} onClick={() => save()}><Save size={16} /> Guardar</button>
+              <button className="btn btn-primary" disabled={saving || Boolean(activeUpload)} onClick={() => save('published')}>{saving ? <Loader2 className="spin" size={16} /> : null} {proposal.status === 'published' ? 'Actualizar publicación' : 'Publicar'}</button>
             </div>
           </div>
+          {activeUpload && <div className="editor-upload-notice">Espera a que termine o cancela la subida antes de guardar.</div>}
           {message && <div className="save-message">{message}</div>}
+          {storageCheck?.state === 'missing' && <div className="editor-storage-notice">
+            <strong>Las cargas de archivos todavía no funcionan.</strong>
+            <p>{storageCheck.message} Puedes seguir con enlaces de YouTube, Vimeo o Dropbox.</p>
+            <a href="https://console.firebase.google.com/project/propuestas-euphoria/storage" target="_blank" rel="noreferrer">Abrir Storage del proyecto</a>
+            <button type="button" onClick={refreshStorageCheck}>Volver a comprobar</button>
+          </div>}
 
           <EditorSection title="Portada y estilo">
-            <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual · directo' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
-            <Input label="Número de ciclo" type="number" value={proposal.cycleNumber || 1} onChange={v => updateField('cycleNumber', Math.max(1, Number(v) || 1))} hint="Al duplicar se incrementa automáticamente; puedes corregirlo." />
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
-            <Input label="Nombre visual en portada" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
-            <Input label="Inicio del periodo" type="date" value={proposal.periodStart || ''} onChange={v => updateField('periodStart', v)} />
-            <Input label="Fin del periodo" type="date" value={proposal.periodEnd || ''} onChange={v => updateField('periodEnd', v)} />
-            <p className="muted">Al duplicar conservas el cliente, el color y el alcance; el nuevo ciclo empieza sin fechas, textos ni referencias del mes anterior.</p>
-            <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
-            <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
+            <Input label="Etiqueta de portada" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Escribe «Ciclo 2 · noviembre» o el texto que quieras. No se agregan fechas automáticamente." />
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
             {proposal.themePreset === 'custom' && (
               <>
@@ -568,45 +578,65 @@ function ProposalEditor({ id }) {
                 <ColorField label="Color oscuro" value={proposal.customAccentDark || proposal.customAccent || '#5f1421'} onChange={v => updateField('customAccentDark', v)} />
               </>
             )}
-            <Input label="Etiqueta de portada (opcional)" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Si queda vacía, se muestra el ciclo y sus fechas." />
-            <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
-            <div className="hero-media-admin-grid">
-              <div className="hero-media-admin-card">
-                <h4>Visual hero izquierdo</h4>
+            <div className="hero-media-admin-grid single">
+              <div className="hero-media-admin-card featured">
+                <h4>Visual principal de portada (opcional)</h4>
+                <Input label="URL de imagen/video" value={proposal.heroMediaUrl || ''} onChange={v => updateField('heroMediaUrl', v)} hint="También puedes pegar un enlace de YouTube o Vimeo." />
+                <MediaUploader
+                  label="Subir visual principal"
+                  proposalId={proposal.id || proposal.slug}
+                  uploadKey="cover-main"
+                  activeUpload={activeUpload}
+                  setActiveUpload={setActiveUpload}
+                  storageUnavailable={storageCheck?.state === 'missing'}
+                  onUploaded={url => updateField('heroMediaUrl', url)}
+                />
+              </div>
+            </div>
+            <details className="editor-extra">
+              <summary>Más opciones de portada</summary>
+              <div className="field-grid">
+                <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
+                <Input label="Nombre en portada, si es distinto" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
+                <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
+                <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
+                <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
+                <Input label="@ del visual principal (opcional)" value={proposal.heroMediaHandle || ''} onChange={v => updateField('heroMediaHandle', v)} />
+              </div>
+              <div className="hero-media-admin-grid side">
+                <div className="hero-media-admin-card">
+                <h4>Visual izquierdo (opcional)</h4>
                 <Input label="URL de imagen/video" value={proposal.heroMediaBackUrl || ''} onChange={v => updateField('heroMediaBackUrl', v)} hint="Se muestra atrás/izquierda. Si lo dejas vacío, usa la referencia visual 2." />
                 <Input label="@ / etiqueta" value={proposal.heroMediaBackHandle || ''} onChange={v => updateField('heroMediaBackHandle', v)} />
                 <MediaUploader
                   label="Subir visual izquierdo"
                   proposalId={proposal.id || proposal.slug}
+                  uploadKey="cover-left"
+                  activeUpload={activeUpload}
+                  setActiveUpload={setActiveUpload}
+                  storageUnavailable={storageCheck?.state === 'missing'}
                   onUploaded={url => updateField('heroMediaBackUrl', url)}
                 />
               </div>
-
-              <div className="hero-media-admin-card featured">
-                <h4>Visual hero principal</h4>
-                <Input label="URL de imagen/video" value={proposal.heroMediaUrl || ''} onChange={v => updateField('heroMediaUrl', v)} hint="Se muestra al centro. Usa MP4/WebM, JPG/PNG/WebP, YouTube o Vimeo." />
-                <Input label="@ / etiqueta" value={proposal.heroMediaHandle || ''} onChange={v => updateField('heroMediaHandle', v)} />
-                <MediaUploader
-                  label="Subir visual principal"
-                  proposalId={proposal.id || proposal.slug}
-                  onUploaded={url => updateField('heroMediaUrl', url)}
-                />
-              </div>
-
               <div className="hero-media-admin-card">
-                <h4>Visual hero derecho</h4>
+                <h4>Visual derecho (opcional)</h4>
                 <Input label="URL de imagen/video" value={proposal.heroMediaFrontUrl || ''} onChange={v => updateField('heroMediaFrontUrl', v)} hint="Se muestra atrás/derecha. Si lo dejas vacío, usa la referencia visual 3." />
                 <Input label="@ / etiqueta" value={proposal.heroMediaFrontHandle || ''} onChange={v => updateField('heroMediaFrontHandle', v)} />
                 <MediaUploader
                   label="Subir visual derecho"
                   proposalId={proposal.id || proposal.slug}
+                  uploadKey="cover-right"
+                  activeUpload={activeUpload}
+                  setActiveUpload={setActiveUpload}
+                  storageUnavailable={storageCheck?.state === 'missing'}
                   onUploaded={url => updateField('heroMediaFrontUrl', url)}
                 />
               </div>
             </div>
+            </details>
           </EditorSection>
 
-          <EditorSection title={proposal.proposalType === 'initial' ? '01 · En una frase' : '01 · Enfoque de este ciclo'}>
+          <EditorSection title={proposal.proposalType === 'initial' ? 'Enfoque inicial' : 'Enfoque del mes'} hint="Esta sección aparece en la vista previa cuando escribes un título o una explicación.">
             <Input label="Título del enfoque" value={proposal.strategyTitle} onChange={v => updateField('strategyTitle', v)} />
             <Textarea label="Qué haremos y por qué" value={proposal.strategyText} onChange={v => updateField('strategyText', v)} />
             {proposal.proposalType === 'initial' && <>
@@ -634,32 +664,45 @@ function ProposalEditor({ id }) {
             </ArraySection>
           </>}
 
-          <EditorSection title="Referencias visuales">
-            <Input label="Título visible al cliente" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
-            <Textarea label="Texto introductorio (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
-          </EditorSection>
-          <ArraySection title="Videos e imágenes de referencia" items={proposal.references} add={() => addArray('references', emptyReference)}>
+          <ArraySection
+            title="Referencias (opcional)"
+            add={() => addArray('references', emptyReference)}
+            hint="Aparecen en la vista previa cuando agregas una referencia con título o enlace."
+            options={<>
+              <Input label="Título de la sección" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
+              <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
+            </>}
+          >
             {proposal.references.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Referencia {i + 1}</b><button onClick={() => removeArray('references', i)}><Trash2 size={15} /></button></div>
-                <Input label="Pilar relacionado" value={item.pillar} onChange={v => updateArray('references', i, 'pillar', v)} />
                 <Input label="Título" value={item.title} onChange={v => updateArray('references', i, 'title', v)} />
-                <Input label="@ referencia" value={item.handle} onChange={v => updateArray('references', i, 'handle', v)} />
-                <Input label="URL de imagen/video" value={item.url} onChange={v => updateArray('references', i, 'url', v)} hint="Pega un enlace de Dropbox/Drive para abrirlo, o YouTube/Vimeo para reproducirlo aquí. MP4/WebM subido se reproduce; MOV se abre como archivo." />
+                <Input label="URL de imagen/video" value={item.url} onChange={v => updateArray('references', i, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
                 <MediaUploader
                   label="Subir imagen/video de referencia"
                   proposalId={proposal.id || proposal.slug}
+                  uploadKey={`reference-${i}`}
+                  activeUpload={activeUpload}
+                  setActiveUpload={setActiveUpload}
+                  storageUnavailable={storageCheck?.state === 'missing'}
                   onUploaded={url => updateArray('references', i, 'url', url)}
                 />
-                <Textarea label="Qué nos gusta de esta referencia" value={item.note} onChange={v => updateArray('references', i, 'note', v)} />
+                <details className="item-options">
+                  <summary>Contexto de la referencia (opcional)</summary>
+                  <Input label="Categoría" value={item.pillar} onChange={v => updateArray('references', i, 'pillar', v)} />
+                  <Input label="@ referencia" value={item.handle} onChange={v => updateArray('references', i, 'handle', v)} />
+                  <Textarea label="Qué nos gusta" value={item.note} onChange={v => updateArray('references', i, 'note', v)} />
+                </details>
               </div>
             ))}
           </ArraySection>
 
-          <EditorSection title="Alcance">
-            <Input label="Título visible al cliente" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />
-          </EditorSection>
-          <ArraySection title="Entregables de este ciclo" items={proposal.deliverables} add={() => addArray('deliverables', emptyDeliverable)}>
+          <ArraySection
+            title="Qué incluye"
+            add={() => addArray('deliverables', emptyDeliverable)}
+            hint="Aparece en la vista previa cuando agregas un entregable."
+            options={<Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />}
+          >
             {proposal.deliverables.map((item, i) => (
               <div className="two-col array-line" key={i}>
                 <Input label="Entregable" value={item.label} onChange={v => updateArray('deliverables', i, 'label', v)} />
@@ -669,38 +712,45 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <EditorSection title="Calendario editorial">
-            <Input label="Título visible al cliente" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
-            <Textarea label="Texto introductorio (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
-          </EditorSection>
-          <details className="editor-section editor-optional"><summary>Importar calendario desde Euphoria OS (opcional)</summary>
-            <CalendarImporter
-              onImport={(result) => {
-                const items = Array.isArray(result) ? result : result.items;
-                const next = { monthPlan: items || [] };
-                if (result?.source) next.calendarImportSource = result.source;
-                if (result?.period) next.calendarImportPeriod = result.period;
-                setProposal(prev => ({
-                  ...prev,
-                  ...next,
-                  periodStart: prev.periodStart || result?.period?.startDate || '',
-                  periodEnd: prev.periodEnd || result?.period?.endDate || ''
-                }));
-              }}
-              existingCount={(proposal.monthPlan || []).length}
-            />
-          </details>
-
-          <ArraySection title="Piezas del calendario" items={proposal.monthPlan} add={() => addArray('monthPlan', emptyPlan)} hint="Si una pieza tiene fecha, se coloca en ese día real del calendario.">
+          <ArraySection
+            title="Calendario editorial"
+            add={() => addArray('monthPlan', emptyPlan)}
+            hint="Agrega piezas fechadas o importa el JSON de Euphoria OS. Las fechas del calendario se obtienen de las piezas."
+            options={<>
+              <Input label="Título de la sección" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
+              <Textarea label="Introducción (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
+              <div className="field-grid">
+                <Input label="Inicio del calendario (opcional)" type="date" value={proposal.periodStart || ''} onChange={v => updateField('periodStart', v)} />
+                <Input label="Fin del calendario (opcional)" type="date" value={proposal.periodEnd || ''} onChange={v => updateField('periodEnd', v)} />
+              </div>
+              <p className="muted">Si dejas estas fechas vacías, se usa el rango de las piezas o del calendario importado. No aparecen en la portada.</p>
+            </>}
+          >
+            <details className="item-options calendar-import">
+              <summary>Importar JSON de Euphoria OS</summary>
+              <CalendarImporter
+                onImport={(result) => {
+                  const items = Array.isArray(result) ? result : result.items;
+                  const next = { monthPlan: items || [] };
+                  if (result?.source) next.calendarImportSource = result.source;
+                  if (result?.period) next.calendarImportPeriod = result.period;
+                  setProposal(prev => ({ ...prev, ...next }));
+                }}
+                existingCount={(proposal.monthPlan || []).length}
+              />
+            </details>
             {proposal.monthPlan.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Pieza del calendario {i + 1}</b><button onClick={() => removeArray('monthPlan', i)}><Trash2 size={15} /></button></div>
                 <Input label="Fecha de publicación" type="date" value={item.date || ''} onChange={v => updateArray('monthPlan', i, 'date', v)} />
-                <Input label="Pieza" value={item.piece} onChange={v => updateArray('monthPlan', i, 'piece', v)} />
-                <Input label="Tipo" value={item.type || ''} onChange={v => updateArray('monthPlan', i, 'type', v)} />
-                <Input label="Pilar" value={item.pillar} onChange={v => updateArray('monthPlan', i, 'pillar', v)} />
+                <Input label="Pieza (Reel 1, Post 1…)" value={item.piece} onChange={v => updateArray('monthPlan', i, 'piece', v)} />
                 <Input label="Tema" value={item.topic} onChange={v => updateArray('monthPlan', i, 'topic', v)} />
-                <Input label="Objetivo" value={item.objective} onChange={v => updateArray('monthPlan', i, 'objective', v)} />
+                <details className="item-options">
+                  <summary>Detalles de esta pieza (opcional)</summary>
+                  <Input label="Tipo" value={item.type || ''} onChange={v => updateArray('monthPlan', i, 'type', v)} />
+                  <Input label="Categoría" value={item.pillar} onChange={v => updateArray('monthPlan', i, 'pillar', v)} />
+                  <Input label="Objetivo" value={item.objective} onChange={v => updateArray('monthPlan', i, 'objective', v)} />
+                </details>
               </div>
             ))}
           </ArraySection>
@@ -720,13 +770,17 @@ function ProposalEditor({ id }) {
             </ArraySection>
           </>}
 
-          <EditorSection title="Cierre (opcional)">
-            <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
-            <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
-          </EditorSection>
+          <details className="editor-section editor-optional">
+            <summary>Cierre (opcional)</summary>
+            <div className="field-grid">
+              <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
+              <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
+            </div>
+          </details>
         </section>
 
         <aside className="preview-panel">
+          <p className="preview-explain">Vista previa · las secciones se muestran cuando agregas contenido.</p>
           <ProposalPage proposal={proposal} compact />
         </aside>
       </main>
@@ -734,14 +788,16 @@ function ProposalEditor({ id }) {
   );
 }
 
-function EditorSection({ title, children }) {
-  return <section className="editor-section"><h2>{title}</h2><div className="field-grid">{children}</div></section>;
+function EditorSection({ title, children, hint }) {
+  return <section className="editor-section"><h2>{title}</h2>{hint && <p className="editor-hint">{hint}</p>}<div className="field-grid">{children}</div></section>;
 }
 
-function ArraySection({ title, children, add }) {
+function ArraySection({ title, children, add, hint, options }) {
   return (
     <section className="editor-section">
       <div className="section-row"><h2>{title}</h2><button className="btn btn-secondary small-btn" onClick={add}><Plus size={15} /> Agregar</button></div>
+      {hint && <p className="editor-hint">{hint}</p>}
+      {options && <details className="item-options section-options"><summary>Cambiar título y opciones</summary><div className="field-grid">{options}</div></details>}
       <div className="array-stack">{children}</div>
     </section>
   );
@@ -808,19 +864,46 @@ function CalendarImporter({ onImport, existingCount = 0 }) {
 }
 
 
-function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded }) {
+function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, uploadKey, activeUpload, setActiveUpload, storageUnavailable = false }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [bytesTransferred, setBytesTransferred] = useState(0);
+  const [fileBytes, setFileBytes] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState('');
   const taskRef = useRef(null);
+  const startedAt = useRef(0);
+
+  useEffect(() => {
+    if (!uploading) return;
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt.current) / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, [uploading]);
+
+  useEffect(() => () => {
+    taskRef.current?.cancel();
+    setActiveUpload(current => current === uploadKey ? null : current);
+  }, [uploadKey, setActiveUpload]);
 
   async function handleFile(file) {
     if (!file) return;
+    if (activeUpload && activeUpload !== uploadKey) {
+      setMessage('Termina o cancela la otra subida antes de elegir un archivo.');
+      return;
+    }
+    setActiveUpload(uploadKey);
     setUploading(true);
     setProgress(0);
+    setBytesTransferred(0);
+    setFileBytes(file.size);
+    setElapsed(0);
+    startedAt.current = Date.now();
     setMessage('');
     try {
-      const url = await uploadProposalMedia(file, proposalId || 'propuesta', setProgress, task => { taskRef.current = task; });
+      const url = await uploadProposalMedia(file, proposalId || 'propuesta', (percent, snapshot) => {
+        setProgress(percent);
+        setBytesTransferred(snapshot.bytesTransferred);
+      }, task => { taskRef.current = task; });
       onUploaded(url);
       setMessage(file.name.toLowerCase().endsWith('.mov')
         ? 'MOV subido como archivo. Se abre por enlace; para reproducir dentro de la propuesta usa MP4 H.264. Guarda la propuesta.'
@@ -829,28 +912,39 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded }) {
       const errors = {
         'storage/unauthorized': 'Firebase rechazó la subida por permisos de Storage. Revisa la cuenta y las reglas.',
         'storage/unauthenticated': 'La sesión caducó. Vuelve a iniciar sesión y prueba de nuevo.',
-        'storage/bucket-not-found': 'El bucket de Firebase Storage no está configurado para esta aplicación.',
+        'storage/bucket-not-found': err?.message || 'El bucket de Firebase Storage no existe para esta aplicación.',
         'storage/quota-exceeded': 'El bucket de Storage alcanzó su cuota.',
-        'storage/retry-limit-exceeded': 'La subida agotó el tiempo de espera. Reintenta con una conexión estable.',
+        'storage/retry-limit-exceeded': 'Firebase agotó el tiempo de reintentos. Revisa la conexión o los permisos de Storage.',
+        'storage/stalled': err?.message,
         'storage/canceled': 'Subida cancelada.'
       };
-      setMessage(errors[err?.code] || err?.message || 'No se pudo subir el archivo.');
+      setMessage(`${errors[err?.code] || err?.message || 'No se pudo subir el archivo.'}${err?.code ? ` (${err.code})` : ''}`);
     } finally {
       taskRef.current = null;
       setUploading(false);
+      setActiveUpload(current => current === uploadKey ? null : current);
     }
   }
+
+  const blocked = Boolean(activeUpload && activeUpload !== uploadKey);
+  const sizeText = bytes => bytes < 1024 * 1024
+    ? `${Math.round(bytes / 1024)} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
   return (
     <div className="field media-upload-field">
       <span>{label}</span>
       <label className="media-upload-box">
         <UploadCloud size={16} />
-        <strong>{uploading ? `Subiendo ${progress}%` : 'Seleccionar archivo'}</strong>
-        <small>Hasta 500 MB por video. MP4 H.264 o WebM para reproducir aquí; MOV se ofrece como enlace. Dropbox/YouTube/Vimeo: pega la URL sin subirlo.</small>
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
+        <strong>{uploading ? progress === 100 ? 'Finalizando…' : `Subiendo ${progress}%` : storageUnavailable ? 'Storage pendiente' : blocked ? 'Espera la otra subida' : 'Seleccionar archivo'}</strong>
+        <small>{storageUnavailable ? 'Activa Storage arriba o pega una URL en el campo anterior.' : 'Un archivo a la vez · video hasta 500 MB. MP4 H.264/WebM se reproducen aquí; MOV se abre como archivo.'}</small>
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov" disabled={uploading || blocked || storageUnavailable} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
       </label>
-      {uploading && <div className="upload-progress"><progress value={progress} max="100" aria-label="Progreso de subida" /><button type="button" onClick={() => taskRef.current?.cancel()}>Cancelar</button></div>}
+      {uploading && <>
+        <div className="upload-progress"><progress value={progress} max="100" aria-label="Progreso de subida" /><button type="button" onClick={() => taskRef.current?.cancel()}>Cancelar</button></div>
+        <small role="status">{sizeText(bytesTransferred)} de {sizeText(fileBytes)} · {elapsed} s</small>
+        {bytesTransferred === 0 && elapsed >= 15 && <small className="upload-warning">Aún no se transfieren datos. Si sigue así, se cancelará a los 90 s y mostrará el error.</small>}
+      </>}
       {message && <small role="status">{message}</small>}
     </div>
   );
@@ -922,6 +1016,7 @@ function trimText(text = '', max = 150) {
 
 function ProposalPage({ proposal, compact = false }) {
   proposal = normalizeProposal(proposal);
+  const period = resolveProposalPeriod(proposal);
   const isMonthly = proposal.proposalType === 'monthly';
   const references = (proposal.references || []).filter(ref => ref?.url || ref?.title || ref?.note).slice(0, 3);
   const themeVars = getThemeVars(proposal.themePreset, proposal.customAccent, proposal.customAccentDark);
@@ -967,12 +1062,9 @@ function ProposalPage({ proposal, compact = false }) {
 
         <div className="wrap luxe-hero-grid">
           <div className="luxe-hero-copy">
-            <div className="luxe-chip">{proposal.heroEyebrow || (proposal.periodStart && proposal.periodEnd ? `Ciclo ${proposal.cycleNumber || 1} · ${formatDateRange([parseLocalDate(proposal.periodStart), parseLocalDate(proposal.periodEnd)])}` : `Ciclo ${proposal.cycleNumber || 1}`)}</div>
+            {proposal.heroEyebrow?.trim() && <div className="luxe-chip">{proposal.heroEyebrow}</div>}
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
             <p>{proposal.positioning}</p>
-            <div className="luxe-hero-actions">
-              <span>Preparado por Euphoria Agency</span>
-            </div>
           </div>
 
           <div className="luxe-phone-stage" aria-label="Referencias visuales de la propuesta">
@@ -985,7 +1077,7 @@ function ProposalPage({ proposal, compact = false }) {
         <div className="wrap luxe-hero-footer">
           <span>{proposal.clientName}</span>
           <span>{proposal.city}</span>
-          <span>{proposal.periodStart?.slice(0, 4) || new Date().getFullYear()}</span>
+          <span>{period.start?.slice(0, 4) || new Date().getFullYear()}</span>
         </div>
       </header>
 
@@ -1070,7 +1162,7 @@ function ProposalPage({ proposal, compact = false }) {
               </div>
               {proposal.calendarIntro && <p>{proposal.calendarIntro}</p>}
             </div>
-            <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} periodStart={proposal.periodStart} periodEnd={proposal.periodEnd} />
+            <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} periodStart={period.start} periodEnd={period.end} />
           </div>
         </section>}
 

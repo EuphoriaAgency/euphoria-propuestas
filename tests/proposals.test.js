@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createBlankProposal, createNextCycleProposal, defaultProposal, normalizeProposal } from '../src/defaultProposal.js';
 import { getEmbed } from '../src/mediaEmbed.js';
+import { resolveProposalPeriod } from '../src/proposalPeriod.js';
+import { validatePublication } from '../src/proposalValidation.js';
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
   const draft = createBlankProposal();
@@ -28,6 +30,7 @@ test('duplicar conserva la identidad y el color, pero limpia los datos del ciclo
   assert.deepEqual(next.references, []);
   assert.deepEqual(next.monthPlan, []);
   assert.equal(next.heroMediaUrl, '');
+  assert.deepEqual(resolveProposalPeriod({ ...next, calendarImportPeriod: { startDate: '2026-10-01', endDate: '2026-10-31' } }), { start: '', end: '' });
 });
 
 test('la propuesta publicada antes de introducir ciclos conserva sus títulos de presentación', () => {
@@ -52,4 +55,21 @@ test('enlaces de Firebase Storage, MOV y plataformas externas se manejan sin fal
   assert.equal(getEmbed('https://youtu.be/abcdefghijk').src, 'https://www.youtube-nocookie.com/embed/abcdefghijk');
   assert.equal(getEmbed('javascript:alert(1)').type, 'empty');
   assert.doesNotThrow(() => getEmbed('https://example.com/%E0%A4%A.mp4'));
+});
+
+test('el calendario deduce su periodo sin capturar fechas en la portada', () => {
+  const proposal = {
+    clientName: 'Cliente de prueba',
+    proposalType: 'monthly',
+    monthPlan: [
+      { date: '2026-11-18', piece: 'Reel 2' },
+      { date: '2026-11-03', piece: 'Reel 1' }
+    ]
+  };
+  assert.deepEqual(resolveProposalPeriod(proposal), { start: '2026-11-03', end: '2026-11-18' });
+  assert.equal(validatePublication(proposal), '');
+  assert.deepEqual(resolveProposalPeriod({ ...proposal, calendarImportPeriod: { startDate: '2026-11-01', endDate: '2026-11-30' } }), { start: '2026-11-01', end: '2026-11-30' });
+  assert.deepEqual(resolveProposalPeriod({ ...proposal, calendarImportPeriod: { startDate: '2026-10-01', endDate: '2026-10-31' } }), { start: '2026-11-03', end: '2026-11-18' });
+  assert.equal(validatePublication({ ...proposal, periodStart: '2026-11-20', periodEnd: '2026-11-30' }), 'Hay piezas fuera del rango del calendario; ajusta las fechas.');
+  assert.equal(validatePublication({ ...proposal, monthPlan: [{ date: '2026-02-30', piece: 'Reel 1' }] }), 'Hay una fecha inválida en el calendario.');
 });

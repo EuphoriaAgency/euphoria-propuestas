@@ -559,4 +559,25 @@ body{background:var(--paper);color:var(--ink)}
 .luxe-scope-item span{font-size:14px;font-weight:700;color:#655e58}
 @media(max-width:980px){.luxe-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.luxe-reference-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.luxe-scope-grid,.luxe-reference-grid{grid-template-columns:1fr}.luxe-scope-item{min-height:100px}}
+
+/* Edición mensual: opciones secundarias dentro de la misma sección. */
+.editor-hint{color:#756c65;font-size:13px;line-height:1.45;margin:-6px 0 16px}
+.editor-extra{grid-column:1/-1;border-top:1px solid var(--line);padding-top:16px;margin-top:4px}
+.editor-extra summary,.item-options summary{cursor:pointer;color:#5b5149;font-weight:750;font-size:13px}
+.editor-extra>.field-grid{margin-top:16px}
+.hero-media-admin-grid.single{grid-template-columns:1fr}
+.hero-media-admin-grid.side{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:16px}
+.item-options{border-top:1px solid var(--line);padding-top:12px}
+.item-options>.field,.item-options>.field-grid,.item-options>.import-box,.item-options>.muted{margin-top:14px}
+.section-options{margin-bottom:16px}
+.section-options>.field-grid{margin-top:16px}
+.section-options>.field-grid>.field-grid,.section-options>.field-grid>.muted{grid-column:1/-1}
+.calendar-import{margin-bottom:4px}
+.preview-explain{font-size:12px;font-weight:700;color:#675e56;margin:0 0 12px}
+.editor-upload-notice{padding:12px 14px;border-radius:12px;background:#fff4d7;color:#6b4a00;margin-bottom:16px;font-size:13px;font-weight:700}
+.editor-storage-notice{padding:16px;border:1px solid #dfb684;border-radius:14px;background:#fff4e7;color:#4d3524;margin-bottom:18px;font-size:14px}
+.editor-storage-notice strong{font-size:15px}.editor-storage-notice p{margin:8px 0 12px}
+.editor-storage-notice a,.editor-storage-notice button{display:inline-block;margin-right:16px;color:#654024;background:transparent;border:0;text-decoration:underline;font-weight:750;cursor:pointer;padding:0}
+.upload-warning{color:#935300!important;font-weight:700!important}
+@media(max-width:980px){.hero-media-admin-grid.side{grid-template-columns:1fr}}
 @media(max-width:640px){.luxe-reference-grid[style*="--reference-count: 1"] .luxe-reference{max-width:none}}

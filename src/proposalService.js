@@ -107,5 +107,9 @@ export async function deleteProposal(id) {
 }
 
 export async function duplicateProposal(proposal) {
-  return createProposal(createNextCycleProposal(proposal));
+  return createProposal({
+    ...createNextCycleProposal(proposal),
+    calendarImportPeriod: null,
+    calendarImportSource: ''
+  });
 }
