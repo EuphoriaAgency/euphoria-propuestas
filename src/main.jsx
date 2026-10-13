@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import {
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import { auth, firebaseReady } from './firebase';
-import { createBlankProposal, defaultProposal } from './defaultProposal';
+import { createBlankProposal, defaultProposal, normalizeProposal } from './defaultProposal';
 import {
   createProposal,
   deleteProposal,
@@ -27,6 +27,7 @@ import {
   updateProposal
 } from './proposalService';
 import { uploadProposalMedia } from './mediaService';
+import { getEmbed } from './mediaEmbed';
 import { validatePublication } from './proposalValidation';
 
 const emptyPillar = { label: '', title: '', text: '' };
@@ -551,11 +552,13 @@ function ProposalEditor({ id }) {
           {message && <div className="save-message">{message}</div>}
 
           <EditorSection title="Portada y estilo">
+            <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual · directo' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
+            <Input label="Número de ciclo" type="number" value={proposal.cycleNumber || 1} onChange={v => updateField('cycleNumber', Math.max(1, Number(v) || 1))} hint="Al duplicar se incrementa automáticamente; puedes corregirlo." />
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
             <Input label="Nombre visual en portada" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
             <Input label="Inicio del periodo" type="date" value={proposal.periodStart || ''} onChange={v => updateField('periodStart', v)} />
             <Input label="Fin del periodo" type="date" value={proposal.periodEnd || ''} onChange={v => updateField('periodEnd', v)} />
-            <p className="muted">El enlace único se habilita al publicar. Puedes duplicar la estrategia para otro mes sin repetir el calendario anterior.</p>
+            <p className="muted">Al duplicar conservas el cliente, el color y el alcance; el nuevo ciclo empieza sin fechas, textos ni referencias del mes anterior.</p>
             <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
             <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
@@ -565,8 +568,8 @@ function ProposalEditor({ id }) {
                 <ColorField label="Color oscuro" value={proposal.customAccentDark || proposal.customAccent || '#5f1421'} onChange={v => updateField('customAccentDark', v)} />
               </>
             )}
-            <Input label="Etiqueta superior" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} />
-            <Textarea label="Frase de posicionamiento" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
+            <Input label="Etiqueta de portada (opcional)" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Si queda vacía, se muestra el ciclo y sus fechas." />
+            <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
             <div className="hero-media-admin-grid">
               <div className="hero-media-admin-card">
                 <h4>Visual hero izquierdo</h4>
@@ -603,19 +606,23 @@ function ProposalEditor({ id }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="01 · En una frase">
-            <Input label="Título principal" value={proposal.strategyTitle} onChange={v => updateField('strategyTitle', v)} />
-            <Textarea label="Texto principal" value={proposal.strategyText} onChange={v => updateField('strategyText', v)} />
-            <Textarea label="Texto de Autoridad" value={proposal.diagnosisText} onChange={v => updateField('diagnosisText', v)} />
-            <Textarea label="Texto de Confianza" value={proposal.audienceNeeds} onChange={v => updateField('audienceNeeds', v)} />
-            <Textarea label="Texto de Agenda" value={proposal.agendaText || ''} onChange={v => updateField('agendaText', v)} />
+          <EditorSection title={proposal.proposalType === 'initial' ? '01 · En una frase' : '01 · Enfoque de este ciclo'}>
+            <Input label="Título del enfoque" value={proposal.strategyTitle} onChange={v => updateField('strategyTitle', v)} />
+            <Textarea label="Qué haremos y por qué" value={proposal.strategyText} onChange={v => updateField('strategyText', v)} />
+            {proposal.proposalType === 'initial' && <>
+              <Textarea label="Texto de Autoridad" value={proposal.diagnosisText} onChange={v => updateField('diagnosisText', v)} />
+              <Textarea label="Texto de Confianza" value={proposal.audienceNeeds} onChange={v => updateField('audienceNeeds', v)} />
+              <Textarea label="Texto de Agenda" value={proposal.agendaText || ''} onChange={v => updateField('agendaText', v)} />
+            </>}
           </EditorSection>
 
-          <EditorSection title="02 · Sistema de contenido">
-            <Textarea label="Texto lateral de la sección" value={proposal.creativeApproach} onChange={v => updateField('creativeApproach', v)} />
-          </EditorSection>
+          {proposal.proposalType === 'initial' && <>
+            <EditorSection title="02 · Sistema de contenido">
+              <Input label="Título visible al cliente" value={proposal.systemTitle || ''} onChange={v => updateField('systemTitle', v)} />
+              <Textarea label="Descripción" value={proposal.creativeApproach} onChange={v => updateField('creativeApproach', v)} />
+            </EditorSection>
 
-          <ArraySection title="02 · Pilares de contenido" items={proposal.pillars} add={() => addArray('pillars', emptyPillar)}>
+            <ArraySection title="02 · Pilares de contenido" items={proposal.pillars} add={() => addArray('pillars', emptyPillar)}>
             {proposal.pillars.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Pilar {i + 1}</b><button onClick={() => removeArray('pillars', i)}><Trash2 size={15} /></button></div>
@@ -624,16 +631,21 @@ function ProposalEditor({ id }) {
                 <Textarea label="Descripción" value={item.text} onChange={v => updateArray('pillars', i, 'text', v)} />
               </div>
             ))}
-          </ArraySection>
+            </ArraySection>
+          </>}
 
-          <ArraySection title="03 · Dirección visual" items={proposal.references} add={() => addArray('references', emptyReference)}>
+          <EditorSection title="Referencias visuales">
+            <Input label="Título visible al cliente" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
+            <Textarea label="Texto introductorio (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
+          </EditorSection>
+          <ArraySection title="Videos e imágenes de referencia" items={proposal.references} add={() => addArray('references', emptyReference)}>
             {proposal.references.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Referencia {i + 1}</b><button onClick={() => removeArray('references', i)}><Trash2 size={15} /></button></div>
                 <Input label="Pilar relacionado" value={item.pillar} onChange={v => updateArray('references', i, 'pillar', v)} />
                 <Input label="Título" value={item.title} onChange={v => updateArray('references', i, 'title', v)} />
                 <Input label="@ referencia" value={item.handle} onChange={v => updateArray('references', i, 'handle', v)} />
-                <Input label="URL de imagen/video" value={item.url} onChange={v => updateArray('references', i, 'url', v)} hint="Puede ser imagen JPG/PNG/WebP, MP4/WebM, YouTube o Vimeo. Instagram/TikTok quedan como link externo si no permiten embeber." />
+                <Input label="URL de imagen/video" value={item.url} onChange={v => updateArray('references', i, 'url', v)} hint="Pega un enlace de Dropbox/Drive para abrirlo, o YouTube/Vimeo para reproducirlo aquí. MP4/WebM subido se reproduce; MOV se abre como archivo." />
                 <MediaUploader
                   label="Subir imagen/video de referencia"
                   proposalId={proposal.id || proposal.slug}
@@ -644,7 +656,10 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <ArraySection title="04 · Entregables del paquete" items={proposal.deliverables} add={() => addArray('deliverables', emptyDeliverable)}>
+          <EditorSection title="Alcance">
+            <Input label="Título visible al cliente" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />
+          </EditorSection>
+          <ArraySection title="Entregables de este ciclo" items={proposal.deliverables} add={() => addArray('deliverables', emptyDeliverable)}>
             {proposal.deliverables.map((item, i) => (
               <div className="two-col array-line" key={i}>
                 <Input label="Entregable" value={item.label} onChange={v => updateArray('deliverables', i, 'label', v)} />
@@ -654,20 +669,29 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <EditorSection title="04 · Importar calendario desde Euphoria OS">
+          <EditorSection title="Calendario editorial">
+            <Input label="Título visible al cliente" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
+            <Textarea label="Texto introductorio (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
+          </EditorSection>
+          <details className="editor-section editor-optional"><summary>Importar calendario desde Euphoria OS (opcional)</summary>
             <CalendarImporter
               onImport={(result) => {
                 const items = Array.isArray(result) ? result : result.items;
                 const next = { monthPlan: items || [] };
                 if (result?.source) next.calendarImportSource = result.source;
                 if (result?.period) next.calendarImportPeriod = result.period;
-                setProposal(prev => ({ ...prev, ...next }));
+                setProposal(prev => ({
+                  ...prev,
+                  ...next,
+                  periodStart: prev.periodStart || result?.period?.startDate || '',
+                  periodEnd: prev.periodEnd || result?.period?.endDate || ''
+                }));
               }}
               existingCount={(proposal.monthPlan || []).length}
             />
-          </EditorSection>
+          </details>
 
-          <ArraySection title="04 · Calendario editorial" items={proposal.monthPlan} add={() => addArray('monthPlan', emptyPlan)} hint="Puedes llenar piezas manualmente o importarlas desde Euphoria OS. Si una pieza tiene fecha, se coloca en ese día real del calendario.">
+          <ArraySection title="Piezas del calendario" items={proposal.monthPlan} add={() => addArray('monthPlan', emptyPlan)} hint="Si una pieza tiene fecha, se coloca en ese día real del calendario.">
             {proposal.monthPlan.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Pieza del calendario {i + 1}</b><button onClick={() => removeArray('monthPlan', i)}><Trash2 size={15} /></button></div>
@@ -681,7 +705,11 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <ArraySection title="05 · Siguiente movimiento" items={proposal.steps} add={() => addArray('steps', emptyStep)}>
+          {proposal.proposalType === 'initial' && <>
+            <EditorSection title="Siguiente movimiento">
+              <Input label="Título visible al cliente" value={proposal.stepsTitle || ''} onChange={v => updateField('stepsTitle', v)} />
+            </EditorSection>
+            <ArraySection title="Pasos" items={proposal.steps} add={() => addArray('steps', emptyStep)}>
             {proposal.steps.map((item, i) => (
               <div className="array-card" key={i}>
                 <div className="array-head"><b>Paso {i + 1}</b><button onClick={() => removeArray('steps', i)}><Trash2 size={15} /></button></div>
@@ -689,9 +717,10 @@ function ProposalEditor({ id }) {
                 <Textarea label="Descripción" value={item.text} onChange={v => updateArray('steps', i, 'text', v)} />
               </div>
             ))}
-          </ArraySection>
+            </ArraySection>
+          </>}
 
-          <EditorSection title="06 · Cierre">
+          <EditorSection title="Cierre (opcional)">
             <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
             <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
           </EditorSection>
@@ -703,19 +732,6 @@ function ProposalEditor({ id }) {
       </main>
     </div>
   );
-}
-
-function normalizeProposal(data) {
-  const empty = createBlankProposal();
-  return {
-    ...empty,
-    ...data,
-    pillars: Array.isArray(data.pillars) ? data.pillars : empty.pillars,
-    references: Array.isArray(data.references) ? data.references : empty.references,
-    deliverables: Array.isArray(data.deliverables) ? data.deliverables : empty.deliverables,
-    monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : empty.monthPlan,
-    steps: Array.isArray(data.steps) ? data.steps : empty.steps
-  };
 }
 
 function EditorSection({ title, children }) {
@@ -794,34 +810,49 @@ function CalendarImporter({ onImport, existingCount = 0 }) {
 
 function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
+  const taskRef = useRef(null);
 
   async function handleFile(file) {
     if (!file) return;
     setUploading(true);
+    setProgress(0);
     setMessage('');
     try {
-      const url = await uploadProposalMedia(file, proposalId || 'propuesta');
+      const url = await uploadProposalMedia(file, proposalId || 'propuesta', setProgress, task => { taskRef.current = task; });
       onUploaded(url);
-      setMessage('Archivo subido. Guarda la propuesta para conservarlo.');
+      setMessage(file.name.toLowerCase().endsWith('.mov')
+        ? 'MOV subido como archivo. Se abre por enlace; para reproducir dentro de la propuesta usa MP4 H.264. Guarda la propuesta.'
+        : 'Archivo subido. Guarda la propuesta para conservarlo.');
     } catch (err) {
-      setMessage(err?.message || 'No se pudo subir. Pega una URL pública del archivo.');
+      const errors = {
+        'storage/unauthorized': 'Firebase rechazó la subida por permisos de Storage. Revisa la cuenta y las reglas.',
+        'storage/unauthenticated': 'La sesión caducó. Vuelve a iniciar sesión y prueba de nuevo.',
+        'storage/bucket-not-found': 'El bucket de Firebase Storage no está configurado para esta aplicación.',
+        'storage/quota-exceeded': 'El bucket de Storage alcanzó su cuota.',
+        'storage/retry-limit-exceeded': 'La subida agotó el tiempo de espera. Reintenta con una conexión estable.',
+        'storage/canceled': 'Subida cancelada.'
+      };
+      setMessage(errors[err?.code] || err?.message || 'No se pudo subir el archivo.');
     } finally {
+      taskRef.current = null;
       setUploading(false);
     }
   }
 
   return (
-    <label className="field media-upload-field">
+    <div className="field media-upload-field">
       <span>{label}</span>
-      <div className="media-upload-box">
+      <label className="media-upload-box">
         <UploadCloud size={16} />
-        <strong>{uploading ? 'Subiendo…' : 'Seleccionar archivo'}</strong>
-        <small>Imágenes o videos. Para archivos pesados, mejor usa YouTube/Vimeo/Drive y pega el link.</small>
-        <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" disabled={uploading} onChange={e => handleFile(e.target.files?.[0])} />
-      </div>
-      {message && <small>{message}</small>}
-    </label>
+        <strong>{uploading ? `Subiendo ${progress}%` : 'Seleccionar archivo'}</strong>
+        <small>Hasta 500 MB por video. MP4 H.264 o WebM para reproducir aquí; MOV se ofrece como enlace. Dropbox/YouTube/Vimeo: pega la URL sin subirlo.</small>
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov" disabled={uploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
+      </label>
+      {uploading && <div className="upload-progress"><progress value={progress} max="100" aria-label="Progreso de subida" /><button type="button" onClick={() => taskRef.current?.cancel()}>Cancelar</button></div>}
+      {message && <small role="status">{message}</small>}
+    </div>
   );
 }
 
@@ -890,7 +921,9 @@ function trimText(text = '', max = 150) {
 }
 
 function ProposalPage({ proposal, compact = false }) {
-  const references = (proposal.references || []).filter(Boolean).slice(0, 3);
+  proposal = normalizeProposal(proposal);
+  const isMonthly = proposal.proposalType === 'monthly';
+  const references = (proposal.references || []).filter(ref => ref?.url || ref?.title || ref?.note).slice(0, 3);
   const themeVars = getThemeVars(proposal.themePreset, proposal.customAccent, proposal.customAccentDark);
   const primaryDeliverables = (proposal.deliverables || []).filter(d => d?.label || d?.value).slice(0, 6);
   const primarySteps = (proposal.steps || [])
@@ -898,7 +931,20 @@ function ProposalPage({ proposal, compact = false }) {
     .filter(s => !/calendario/i.test(`${s?.title || ''} ${s?.text || ''}`))
     .slice(0, 4);
   const primaryPlan = (proposal.monthPlan || []).filter(row => row?.topic || row?.piece);
-  const pillars = (proposal.pillars || []).slice(0, 3);
+  const pillars = (proposal.pillars || []).filter(p => p?.title || p?.text).slice(0, 3);
+  const showIntro = Boolean(proposal.strategyTitle || proposal.strategyText || (!isMonthly && (proposal.diagnosisText || proposal.audienceNeeds || proposal.agendaText)));
+  const showSystem = !isMonthly && Boolean(proposal.creativeApproach || pillars.length);
+  const showVisuals = references.length > 0;
+  const showScope = isMonthly && primaryDeliverables.length > 0;
+  const showCalendar = primaryPlan.length > 0;
+  const showSteps = !isMonthly && primarySteps.length > 0;
+  let sectionCount = 0;
+  const introNumber = showIntro ? ++sectionCount : null;
+  const systemNumber = showSystem ? ++sectionCount : null;
+  const visualNumber = showVisuals ? ++sectionCount : null;
+  const scopeNumber = showScope ? ++sectionCount : null;
+  const calendarNumber = showCalendar ? ++sectionCount : null;
+  const stepsNumber = showSteps ? ++sectionCount : null;
   const heroBackItem = proposal.heroMediaBackUrl
     ? { url: proposal.heroMediaBackUrl, handle: proposal.heroMediaBackHandle || references[1]?.handle, title: 'Hero visual izquierdo' }
     : references[1];
@@ -921,7 +967,7 @@ function ProposalPage({ proposal, compact = false }) {
 
         <div className="wrap luxe-hero-grid">
           <div className="luxe-hero-copy">
-            <div className="luxe-chip">{proposal.heroEyebrow || (proposal.periodStart && proposal.periodEnd ? `Propuesta mensual · ${formatDateRange([parseLocalDate(proposal.periodStart), parseLocalDate(proposal.periodEnd)])}` : 'Propuesta mensual')}</div>
+            <div className="luxe-chip">{proposal.heroEyebrow || (proposal.periodStart && proposal.periodEnd ? `Ciclo ${proposal.cycleNumber || 1} · ${formatDateRange([parseLocalDate(proposal.periodStart), parseLocalDate(proposal.periodEnd)])}` : `Ciclo ${proposal.cycleNumber || 1}`)}</div>
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
             <p>{proposal.positioning}</p>
             <div className="luxe-hero-actions">
@@ -944,31 +990,31 @@ function ProposalPage({ proposal, compact = false }) {
       </header>
 
       <main className="luxe-main">
-        <section className="luxe-section luxe-intro">
+        {showIntro && <section className="luxe-section luxe-intro">
           <div className="wrap luxe-intro-grid">
             <div>
-              <div className="luxe-kicker">01 · En una frase</div>
-              <h2>{proposal.strategyTitle || 'Contenido con dirección comercial.'}</h2>
+              <div className="luxe-kicker">{String(introNumber).padStart(2, '0')} · {isMonthly ? 'Enfoque del ciclo' : 'En una frase'}</div>
+              {proposal.strategyTitle && <h2>{proposal.strategyTitle}</h2>}
             </div>
             <div className="luxe-intro-copy">
-              <p>{proposal.strategyText}</p>
-              <div className="luxe-proof-grid">
-                <LuxeMetric title="Autoridad" text={proposal.diagnosisText} />
-                <LuxeMetric title="Confianza" text={proposal.audienceNeeds} />
-                <LuxeMetric title="Agenda" text={proposal.agendaText || ''} />
-              </div>
+              {proposal.strategyText && <p>{proposal.strategyText}</p>}
+              {!isMonthly && (proposal.diagnosisText || proposal.audienceNeeds || proposal.agendaText) && <div className="luxe-proof-grid">
+                {proposal.diagnosisText && <LuxeMetric title="Autoridad" text={proposal.diagnosisText} />}
+                {proposal.audienceNeeds && <LuxeMetric title="Confianza" text={proposal.audienceNeeds} />}
+                {proposal.agendaText && <LuxeMetric title="Agenda" text={proposal.agendaText} />}
+              </div>}
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section className="luxe-section luxe-system">
+        {showSystem && <section className="luxe-section luxe-system">
           <div className="wrap">
             <div className="luxe-section-head">
               <div>
-                <div className="luxe-kicker">02 · Sistema de contenido</div>
-                <h2>Menos piezas sueltas. Más intención.</h2>
+                <div className="luxe-kicker">{String(systemNumber).padStart(2, '0')} · Sistema de contenido</div>
+                <h2>{proposal.systemTitle || 'Sistema de contenido'}</h2>
               </div>
-              <p>{proposal.creativeApproach}</p>
+              {proposal.creativeApproach && <p>{proposal.creativeApproach}</p>}
             </div>
             <div className="luxe-pillar-stack">
               {pillars.map((p, i) => (
@@ -981,18 +1027,18 @@ function ProposalPage({ proposal, compact = false }) {
               ))}
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section className="luxe-section luxe-visuals">
-          <div className="wrap luxe-visuals-head">
+        {showVisuals && <section className="luxe-section luxe-visuals">
+          <div className={`wrap luxe-visuals-head ${proposal.visualIntro ? '' : 'is-single'}`}>
             <div>
-              <div className="luxe-kicker">03 · Dirección visual</div>
-              <h2>La propuesta se entiende viendo.</h2>
+              <div className="luxe-kicker">{String(visualNumber).padStart(2, '0')} · Referencias visuales</div>
+              <h2>{proposal.visualTitle || 'Referencias visuales'}</h2>
             </div>
-            <p>Las referencias viven dentro de la propuesta para que el cliente visualice ritmo, encuadre, tono y estilo sin abrir links aparte.</p>
+            {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
           </div>
-          <div className="wrap luxe-reference-grid">
-            {references.length ? references.map((ref, i) => (
+          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length }}>
+            {references.map((ref, i) => (
               <article className="luxe-reference" key={i}>
                 <VideoMockup refItem={ref} label={ref.pillar || `Referencia ${i + 1}`} />
                 <div>
@@ -1001,28 +1047,38 @@ function ProposalPage({ proposal, compact = false }) {
                   <p>{ref.note}</p>
                 </div>
               </article>
-            )) : <div className="empty-state">Agrega referencias visuales desde el editor.</div>}
+            ))}
           </div>
-        </section>
+        </section>}
 
-        <section className="luxe-section luxe-calendar-section">
+        {showScope && <section className="luxe-section luxe-scope">
           <div className="wrap">
-            <div className="luxe-calendar-head">
+            <div className="luxe-kicker">{String(scopeNumber).padStart(2, '0')} · Alcance</div>
+            <h2>{proposal.deliverablesTitle || 'Alcance del ciclo'}</h2>
+            <div className="luxe-scope-grid">
+              {primaryDeliverables.map((item, i) => <div className="luxe-scope-item" key={i}><strong>{item.value}</strong><span>{item.label}</span></div>)}
+            </div>
+          </div>
+        </section>}
+
+        {showCalendar && <section className="luxe-section luxe-calendar-section">
+          <div className="wrap">
+            <div className={`luxe-calendar-head ${proposal.calendarIntro ? '' : 'is-single'}`}>
               <div>
-                <div className="luxe-kicker">04 · Calendario editorial</div>
-                <h2>Así se verá la ejecución.</h2>
+                <div className="luxe-kicker">{String(calendarNumber).padStart(2, '0')} · Calendario editorial</div>
+                <h2>{proposal.calendarTitle || 'Calendario del ciclo'}</h2>
               </div>
-              <p>El contenido no solo se produce: se organiza con ritmo, intención comercial y consistencia mensual.</p>
+              {proposal.calendarIntro && <p>{proposal.calendarIntro}</p>}
             </div>
             <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} periodStart={proposal.periodStart} periodEnd={proposal.periodEnd} />
           </div>
-        </section>
+        </section>}
 
-        <section className="luxe-section luxe-launch luxe-launch-steps-only">
+        {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only">
           <div className="wrap luxe-steps-center">
             <div className="luxe-steps-card">
-              <div className="luxe-kicker">05 · Arranque</div>
-              <h3>Siguiente movimiento</h3>
+              <div className="luxe-kicker">{String(stepsNumber).padStart(2, '0')} · Arranque</div>
+              <h3>{proposal.stepsTitle || 'Siguiente movimiento'}</h3>
               {primarySteps.map((s, i) => (
                 <div className="luxe-step" key={i}>
                   <span>{String(i + 1).padStart(2, '0')}</span>
@@ -1034,17 +1090,17 @@ function ProposalPage({ proposal, compact = false }) {
               ))}
             </div>
           </div>
-        </section>
+        </section>}
       </main>
 
-      <footer className="luxe-close">
+      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close">
         <div className="wrap">
           <span className="luxe-kicker">Cierre</span>
-          <h2>{proposal.ctaTitle || '¿Lista para empezar?'}</h2>
-          <p>{proposal.ctaText}</p>
+          {proposal.ctaTitle && <h2>{proposal.ctaTitle}</h2>}
+          {proposal.ctaText && <p>{proposal.ctaText}</p>}
           <div className="luxe-close-foot">Euphoria Agency · {proposal.city}</div>
         </div>
-      </footer>
+      </footer>}
     </div>
   );
 }
@@ -1149,17 +1205,19 @@ function LuxeMetric({ title, text }) {
 function VideoMockup({ refItem, label }) {
   const safe = refItem || {};
   const embed = getEmbed(safe.url);
+  const [playbackError, setPlaybackError] = useState(false);
+  useEffect(() => setPlaybackError(false), [safe.url]);
   return (
     <div className="luxe-video-frame">
       <div className="luxe-video-top"><span /> <span /> <span /></div>
       <div className="luxe-video-body">
         {embed.type === 'image' && <img src={safe.url} alt={safe.title || label || 'Referencia visual'} />}
-        {embed.type === 'video' && <video src={safe.url} muted loop playsInline controls />}
+        {embed.type === 'video' && !playbackError && <video src={embed.src} preload="none" playsInline controls onError={() => setPlaybackError(true)} />}
         {embed.type === 'iframe' && <iframe src={embed.src} title={safe.title || label} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
-        {embed.type === 'link' && (
+        {(embed.type === 'link' || embed.type === 'empty' || playbackError) && (
           <div className="luxe-video-placeholder">
             <small>{label || 'Referencia visual'}</small>
-            {safe.url ? <a href={safe.url} target="_blank" rel="noreferrer">Abrir referencia</a> : <strong>Referencia visual</strong>}
+            {embed.src ? <a href={embed.src} target="_blank" rel="noreferrer">{playbackError ? 'No se puede reproducir aquí · abrir archivo' : 'Abrir referencia'}</a> : <strong>Referencia visual</strong>}
           </div>
         )}
       </div>
@@ -1197,20 +1255,6 @@ function ReferenceCard({ refItem }) {
       <p>{refItem.note}</p>
     </div>
   );
-}
-
-function getEmbed(url = '') {
-  if (!url) return { type: 'link' };
-  const clean = url.trim();
-  if (/\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i.test(clean)) return { type: 'image' };
-  if (/^data:image\//i.test(clean)) return { type: 'image' };
-  if (/\.(mp4|webm|mov)(\?.*)?$/i.test(clean)) return { type: 'video' };
-  if (/^data:video\//i.test(clean)) return { type: 'video' };
-  const yt = clean.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]+)/);
-  if (yt) return { type: 'iframe', src: `https://www.youtube.com/embed/${yt[1]}` };
-  const vimeo = clean.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vimeo) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeo[1]}` };
-  return { type: 'link' };
 }
 
 createRoot(document.getElementById('root')).render(<App />);

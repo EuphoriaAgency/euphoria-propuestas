@@ -11,6 +11,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, firebaseReady } from './firebase';
+import { createNextCycleProposal } from './defaultProposal';
 
 const LS_KEY = 'euphoria_proposals_demo';
 const colName = 'proposals';
@@ -106,15 +107,5 @@ export async function deleteProposal(id) {
 }
 
 export async function duplicateProposal(proposal) {
-  const copy = {
-    ...proposal,
-    // Conservar el cliente y la estrategia, pero iniciar un ciclo nuevo.
-    slug: '',
-    periodStart: '',
-    periodEnd: '',
-    monthPlan: [],
-    status: 'draft'
-  };
-  delete copy.id;
-  return createProposal(copy);
+  return createProposal(createNextCycleProposal(proposal));
 }

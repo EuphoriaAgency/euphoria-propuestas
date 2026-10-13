@@ -29,3 +29,11 @@ http://localhost:5186/admin
 - Soporte para subir imagen/video a Firebase Storage cuando Firebase esté configurado.
 - Las referencias visuales ahora aceptan imágenes JPG/PNG/WebP y videos MP4/WebM, además de YouTube/Vimeo.
 - Si Firebase Storage no está configurado, pega una URL pública del archivo.
+
+## Ciclos mensuales
+
+Una propuesta nueva abre en «Ciclo mensual»: portada, enfoque, alcance, referencias y calendario, mostrando sólo las secciones que tienen contenido. Los títulos de cada sección y el cierre se editan en `/admin`; el cierre puede dejarse vacío. El modo «Primera propuesta» conserva las secciones de estrategia y pilares.
+
+«Duplicar» crea el ciclo siguiente para el mismo cliente y conserva su paleta y alcance. Limpia las fechas, el texto, las referencias y las piezas anteriores para que el enlace del ciclo previo siga siendo independiente.
+
+El formulario acepta imágenes de hasta 20 MB y videos MP4, WebM o MOV de hasta 500 MB mediante subida reanudable con progreso. MP4 H.264 y WebM se intentan reproducir en la propuesta; MOV se abre como archivo. YouTube/Vimeo pueden reproducirse integrados mediante URL y Dropbox/Drive se abren por enlace. Firebase Storage debe estar configurado y permitir el archivo según sus reglas; consulta `QA.md` antes de usarlo con clientes.

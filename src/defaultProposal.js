@@ -1,5 +1,7 @@
 export const defaultProposal = {
   status: 'draft',
+  proposalType: 'initial',
+  cycleNumber: 1,
   slug: 'dra-mabel-limon',
   clientName: 'Dra. Mabel Limón',
   clientDisplayName: 'Dra. Mabel Limón',
@@ -25,6 +27,13 @@ export const defaultProposal = {
   audienceNeeds: 'Seguridad, información y confianza antes de agendar. Valoran la naturalidad, la atención personalizada y el criterio médico.',
   agendaText: 'Cada pieza se diseña para mover al paciente de interés a valoración.',
   creativeApproach: 'La línea creativa será médica, estética, clara y cercana. No se basará en tendencias vacías: cada pieza debe reforzar confianza, autoridad y deseo de agendar una valoración.',
+  systemTitle: 'Menos piezas sueltas. Más intención.',
+  visualTitle: 'La propuesta se entiende viendo.',
+  visualIntro: 'Las referencias viven dentro de la propuesta para que el cliente visualice ritmo, encuadre, tono y estilo sin abrir links aparte.',
+  calendarTitle: 'Así se verá la ejecución.',
+  calendarIntro: 'El contenido no solo se produce: se organiza con ritmo, intención comercial y consistencia mensual.',
+  deliverablesTitle: 'Alcance de este ciclo',
+  stepsTitle: 'Siguiente movimiento',
   pillars: [
     {
       label: 'Educativo / Informativo',
@@ -94,6 +103,8 @@ export const defaultProposal = {
 export function createBlankProposal() {
   return {
     ...defaultProposal,
+    proposalType: 'monthly',
+    cycleNumber: 1,
     slug: '',
     clientName: '',
     clientDisplayName: '',
@@ -119,12 +130,83 @@ export function createBlankProposal() {
     audienceNeeds: '',
     agendaText: '',
     creativeApproach: '',
+    systemTitle: '',
+    visualTitle: 'Referencias del ciclo',
+    visualIntro: '',
+    calendarTitle: 'Calendario del ciclo',
+    calendarIntro: '',
+    deliverablesTitle: 'Alcance del ciclo',
+    stepsTitle: '',
     pillars: [],
     references: [],
     deliverables: [],
     monthPlan: [],
     steps: [],
-    ctaTitle: '¿Listos para empezar?',
-    ctaText: 'Cuando nos des luz verde, coordinamos el siguiente paso.'
+    ctaTitle: '',
+    ctaText: ''
   };
+}
+
+export function normalizeProposal(data = {}) {
+  const isInitial = data.proposalType === 'initial' || (!data.proposalType &&
+    Boolean(data.pillars?.length || data.steps?.length || data.creativeApproach));
+  const empty = createBlankProposal();
+  const headings = isInitial ? {
+    systemTitle: defaultProposal.systemTitle,
+    visualTitle: defaultProposal.visualTitle,
+    visualIntro: defaultProposal.visualIntro,
+    calendarTitle: defaultProposal.calendarTitle,
+    calendarIntro: defaultProposal.calendarIntro,
+    stepsTitle: defaultProposal.stepsTitle
+  } : {};
+  return {
+    ...empty,
+    ...headings,
+    ...data,
+    proposalType: isInitial ? 'initial' : 'monthly',
+    pillars: Array.isArray(data.pillars) ? data.pillars : empty.pillars,
+    references: Array.isArray(data.references) ? data.references : empty.references,
+    deliverables: Array.isArray(data.deliverables) ? data.deliverables : empty.deliverables,
+    monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : empty.monthPlan,
+    steps: Array.isArray(data.steps) ? data.steps : empty.steps
+  };
+}
+
+export function createNextCycleProposal(proposal) {
+  const copy = {
+    ...proposal,
+    proposalType: 'monthly',
+    cycleNumber: (Number(proposal.cycleNumber) || 1) + 1,
+    slug: '',
+    periodStart: '',
+    periodEnd: '',
+    heroEyebrow: '',
+    positioning: '',
+    heroMediaBackUrl: '',
+    heroMediaBackHandle: '',
+    heroMediaUrl: '',
+    heroMediaHandle: '',
+    heroMediaFrontUrl: '',
+    heroMediaFrontHandle: '',
+    strategyTitle: '',
+    strategyText: '',
+    diagnosisText: '',
+    audienceNeeds: '',
+    agendaText: '',
+    creativeApproach: '',
+    pillars: [],
+    references: [],
+    steps: [],
+    visualTitle: 'Referencias del ciclo',
+    visualIntro: '',
+    calendarTitle: 'Calendario del ciclo',
+    calendarIntro: '',
+    deliverablesTitle: 'Alcance del ciclo',
+    ctaTitle: '',
+    ctaText: '',
+    monthPlan: [],
+    status: 'draft'
+  };
+  delete copy.id;
+  return copy;
 }
