@@ -601,13 +601,11 @@ function ProposalEditor({ id }) {
                 <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
                 <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
                 <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
-                <Input label="@ del visual principal (opcional)" value={proposal.heroMediaHandle || ''} onChange={v => updateField('heroMediaHandle', v)} />
               </div>
               <div className="hero-media-admin-grid side">
                 <div className="hero-media-admin-card">
                 <h4>Visual izquierdo (opcional)</h4>
                 <Input label="URL de imagen/video" value={proposal.heroMediaBackUrl || ''} onChange={v => updateField('heroMediaBackUrl', v)} hint="Se muestra atrás/izquierda. Si lo dejas vacío, usa la referencia visual 2." />
-                <Input label="@ / etiqueta" value={proposal.heroMediaBackHandle || ''} onChange={v => updateField('heroMediaBackHandle', v)} />
                 <MediaUploader
                   label="Subir visual izquierdo"
                   proposalId={proposal.id || proposal.slug}
@@ -621,7 +619,6 @@ function ProposalEditor({ id }) {
               <div className="hero-media-admin-card">
                 <h4>Visual derecho (opcional)</h4>
                 <Input label="URL de imagen/video" value={proposal.heroMediaFrontUrl || ''} onChange={v => updateField('heroMediaFrontUrl', v)} hint="Se muestra atrás/derecha. Si lo dejas vacío, usa la referencia visual 3." />
-                <Input label="@ / etiqueta" value={proposal.heroMediaFrontHandle || ''} onChange={v => updateField('heroMediaFrontHandle', v)} />
                 <MediaUploader
                   label="Subir visual derecho"
                   proposalId={proposal.id || proposal.slug}
@@ -690,7 +687,6 @@ function ProposalEditor({ id }) {
                 <details className="item-options">
                   <summary>Contexto de la referencia (opcional)</summary>
                   <Input label="Categoría" value={item.pillar} onChange={v => updateArray('references', i, 'pillar', v)} />
-                  <Input label="@ referencia" value={item.handle} onChange={v => updateArray('references', i, 'handle', v)} />
                   <Textarea label="Qué nos gusta" value={item.note} onChange={v => updateArray('references', i, 'note', v)} />
                 </details>
               </div>
@@ -1041,13 +1037,13 @@ function ProposalPage({ proposal, compact = false }) {
   const calendarNumber = showCalendar ? ++sectionCount : null;
   const stepsNumber = showSteps ? ++sectionCount : null;
   const heroBackItem = proposal.heroMediaBackUrl
-    ? { url: proposal.heroMediaBackUrl, handle: proposal.heroMediaBackHandle || references[1]?.handle, title: 'Hero visual izquierdo' }
+    ? { url: proposal.heroMediaBackUrl, title: 'Hero visual izquierdo' }
     : references[1];
   const heroMainItem = proposal.heroMediaUrl
-    ? { url: proposal.heroMediaUrl, handle: proposal.heroMediaHandle || references[0]?.handle, title: 'Hero visual principal' }
+    ? { url: proposal.heroMediaUrl, title: 'Hero visual principal' }
     : references[0];
   const heroFrontItem = proposal.heroMediaFrontUrl
-    ? { url: proposal.heroMediaFrontUrl, handle: proposal.heroMediaFrontHandle || references[2]?.handle, title: 'Hero visual derecho' }
+    ? { url: proposal.heroMediaFrontUrl, title: 'Hero visual derecho' }
     : references[2];
 
   return (
@@ -1313,9 +1309,6 @@ function VideoMockup({ refItem, label }) {
           </div>
         )}
       </div>
-      <div className="luxe-video-caption">
-        <span>{safe.handle || '@referencia'}</span>
-      </div>
     </div>
   );
 }
@@ -1341,7 +1334,6 @@ function ReferenceCard({ refItem }) {
         {embed.type === 'video' && <video src={refItem.url} muted loop playsInline controls />}
         {embed.type === 'iframe' && <iframe src={embed.src} title={refItem.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
         {embed.type === 'link' && <div className="reel-empty"><span>Video de referencia</span>{refItem.url ? <a href={refItem.url} target="_blank" rel="noreferrer">Abrir referencia</a> : <small>Agrega link en el editor</small>}</div>}
-        {refItem.handle && <span className="reel-credit">{refItem.handle}</span>}
       </div>
       <h3>{refItem.title}</h3>
       <p>{refItem.note}</p>
