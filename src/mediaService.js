@@ -56,13 +56,6 @@ export async function uploadProposalMedia(file, proposalId = 'demo', onProgress 
   if (!type) throw new Error('Archivo no compatible. Usa JPG, PNG, WebP, GIF, MP4, WebM o MOV.');
   const maxBytes = type.kind === 'video' ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
   if (file.size > maxBytes) throw new Error(`El archivo supera ${type.kind === 'video' ? '500 MB' : '20 MB'}. Para videos grandes, pega un enlace de Dropbox, YouTube o Vimeo.`);
-  const bucketCheck = await checkProposalStorage();
-  if (bucketCheck.state === 'missing') {
-    const error = new Error(bucketCheck.message);
-    error.code = 'storage/bucket-not-found';
-    throw error;
-  }
-
   const filename = `${crypto.randomUUID ? crypto.randomUUID() : Date.now()}-${safeName(file.name)}`;
   const path = `proposal-media/${safeName(proposalId)}/${filename}`;
   const fileRef = ref(storage, path);
