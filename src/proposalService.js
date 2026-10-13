@@ -6,12 +6,12 @@ import {
   getDocs,
   query,
   orderBy,
-  where,
   updateDoc,
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { db, firebaseReady } from './firebase';
+import { createNextCycleProposal } from './defaultProposal';
 
 const LS_KEY = 'euphoria_proposals_demo';
 const colName = 'proposals';
@@ -51,16 +51,17 @@ export async function getProposalById(id) {
   return localRead().find(p => p.id === id) || null;
 }
 
-export async function getProposalBySlug(slug) {
-  if (!slug) return null;
+export async function getPublicProposal(key) {
+  if (!key) return null;
   if (firebaseReady) {
-    const q = query(collection(db, colName), where('slug', '==', slug));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const first = snap.docs[0];
-    return { id: first.id, ...first.data() };
+    // Solo se consulta el documento del enlace, sin listar otros clientes.
+    const snap = await getDoc(doc(db, colName, key));
+    return snap.exists() && snap.data().status === 'published'
+      ? { id: snap.id, ...snap.data() }
+      : null;
   }
-  return localRead().find(p => p.slug === slug) || null;
+  const byId = localRead().find(p => p.id === key);
+  return byId?.status === 'published' ? byId : null;
 }
 
 export async function createProposal(data) {
@@ -106,13 +107,9 @@ export async function deleteProposal(id) {
 }
 
 export async function duplicateProposal(proposal) {
-  const copy = {
-    ...proposal,
-    clientName: `${proposal.clientName || 'Propuesta'} · copia`,
-    clientDisplayName: `${proposal.clientDisplayName || proposal.clientName || 'Propuesta'} · copia`,
-    slug: `${proposal.slug || 'propuesta'}-copia-${Date.now().toString().slice(-4)}`,
-    status: 'draft'
-  };
-  delete copy.id;
-  return createProposal(copy);
+  return createProposal({
+    ...createNextCycleProposal(proposal),
+    calendarImportPeriod: null,
+    calendarImportSource: ''
+  });
 }

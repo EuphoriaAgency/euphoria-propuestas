@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isProposalAdmin() {
+      return request.auth != null && request.auth.uid in [
+        'mluE87ChiKfltioaiHxJFPWxhKN2',
+        'wKqFs6Ydwkbxw3gpwPGzozU6iGC2'
+      ];
+    }
+
+    match /proposals/{proposalId} {
+      // The shared URL reads a single published document by its random ID.
+      allow get: if isProposalAdmin() || resource.data.status == 'published';
+      allow list: if isProposalAdmin();
+      allow create, update, delete: if isProposalAdmin();
+    }
+  }
+}
