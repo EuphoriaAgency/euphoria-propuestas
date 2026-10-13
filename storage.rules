@@ -1,0 +1,23 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isProposalAdmin() {
+      return request.auth != null && request.auth.uid in [
+        'mluE87ChiKfltioaiHxJFPWxhKN2',
+        'wKqFs6Ydwkbxw3gpwPGzozU6iGC2'
+      ];
+    }
+
+    match /proposal-media/{proposalId}/{fileName} {
+      // A published proposal displays the explicit download URL saved in its
+      // document. This SDK rule does not make the bucket publicly listable.
+      allow get, list: if isProposalAdmin();
+      allow create: if isProposalAdmin() &&
+        ((request.resource.contentType.matches('image/(jpeg|png|webp|gif)') &&
+          request.resource.size <= 20 * 1024 * 1024) ||
+         (request.resource.contentType.matches('video/(mp4|webm|quicktime)') &&
+          request.resource.size <= 500 * 1024 * 1024));
+      allow delete: if isProposalAdmin();
+    }
+  }
+}
