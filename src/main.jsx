@@ -1045,6 +1045,9 @@ function ProposalPage({ proposal, compact = false }) {
   const heroFrontItem = proposal.heroMediaFrontUrl
     ? { url: proposal.heroMediaFrontUrl, title: 'Hero visual derecho' }
     : references[2];
+  const heroCenter = [heroMainItem, heroBackItem, heroFrontItem].find(item => item?.url);
+  const heroLeft = heroBackItem?.url && heroBackItem !== heroCenter ? heroBackItem : null;
+  const heroRight = heroFrontItem?.url && heroFrontItem !== heroCenter ? heroFrontItem : null;
 
   return (
     <div className={compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'} style={themeVars}>
@@ -1056,18 +1059,18 @@ function ProposalPage({ proposal, compact = false }) {
           <div className="luxe-nav-meta">{proposal.vertical}</div>
         </div>
 
-        <div className="wrap luxe-hero-grid">
+        <div className={`wrap luxe-hero-grid${heroCenter ? '' : ' no-media'}`}>
           <div className="luxe-hero-copy">
             {proposal.heroEyebrow?.trim() && <div className="luxe-chip">{proposal.heroEyebrow}</div>}
             <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
             <p>{proposal.positioning}</p>
           </div>
 
-          <div className="luxe-phone-stage" aria-label="Referencias visuales de la propuesta">
-            <div className="luxe-phone luxe-phone-back"><VideoMockup refItem={heroBackItem} label="Promocional" /></div>
-            <div className="luxe-phone luxe-phone-main"><VideoMockup refItem={heroMainItem} label="Educativo" /></div>
-            <div className="luxe-phone luxe-phone-front"><VideoMockup refItem={heroFrontItem} label="Conexión" /></div>
-          </div>
+          {heroCenter && <div className="luxe-phone-stage" aria-label="Visuales de portada de la propuesta">
+            {heroLeft && <div className="luxe-phone luxe-phone-back"><VideoMockup refItem={heroLeft} inCover /></div>}
+            <div className="luxe-phone luxe-phone-main"><VideoMockup refItem={heroCenter} inCover /></div>
+            {heroRight && <div className="luxe-phone luxe-phone-front"><VideoMockup refItem={heroRight} inCover /></div>}
+          </div>}
         </div>
 
         <div className="wrap luxe-hero-footer">
@@ -1290,7 +1293,7 @@ function LuxeMetric({ title, text }) {
   );
 }
 
-function VideoMockup({ refItem, label }) {
+function VideoMockup({ refItem, label, inCover = false }) {
   const safe = refItem || {};
   const embed = getEmbed(safe.url);
   const [playbackError, setPlaybackError] = useState(false);
@@ -1299,13 +1302,13 @@ function VideoMockup({ refItem, label }) {
     <div className="luxe-video-frame">
       <div className="luxe-video-top"><span /> <span /> <span /></div>
       <div className="luxe-video-body">
-        {embed.type === 'image' && <img src={safe.url} alt={safe.title || label || 'Referencia visual'} />}
+        {embed.type === 'image' && <img src={safe.url} alt={inCover ? 'Visual de portada' : safe.title || label || 'Referencia visual'} />}
         {embed.type === 'video' && !playbackError && <video src={embed.src} preload="none" playsInline controls onError={() => setPlaybackError(true)} />}
-        {embed.type === 'iframe' && <iframe src={embed.src} title={safe.title || label} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
+        {embed.type === 'iframe' && <iframe src={embed.src} title={inCover ? 'Visual de portada' : safe.title || label || 'Referencia visual'} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
         {(embed.type === 'link' || embed.type === 'empty' || playbackError) && (
-          <div className="luxe-video-placeholder">
-            <small>{label || 'Referencia visual'}</small>
-            {embed.src ? <a href={embed.src} target="_blank" rel="noreferrer">{playbackError ? 'No se puede reproducir aquí · abrir archivo' : 'Abrir referencia'}</a> : <strong>Referencia visual</strong>}
+          <div className={`luxe-video-placeholder${inCover ? ' is-cover' : ''}`}>
+            {!inCover && <small>{label || 'Referencia visual'}</small>}
+            {embed.src ? <a href={embed.src} target="_blank" rel="noreferrer" aria-label={inCover ? 'Abrir visual de portada' : undefined}>{inCover ? <ExternalLink size={20} aria-hidden="true" /> : playbackError ? 'No se puede reproducir aquí · abrir archivo' : 'Abrir referencia'}</a> : !inCover && <strong>Referencia visual</strong>}
           </div>
         )}
       </div>
