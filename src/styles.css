@@ -87,11 +87,11 @@ button,input,textarea{font:inherit}.btn{border:0;border-radius:999px;padding:12p
 .luxe-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:var(--lux-red);color:#fff;border-radius:999px;padding:15px 27px;font-weight:900;box-shadow:0 18px 52px rgba(196,18,47,.26);transition:.18s ease}
 .luxe-btn:hover{transform:translateY(-2px);background:#a80f27}
 .luxe-hero-actions span{color:rgba(255,255,255,.52);font-size:13px;font-weight:700}
-.luxe-phone-stage{height:610px;position:relative;display:flex;align-items:center;justify-content:center;perspective:1100px}
+.luxe-phone-stage{--side-offset:clamp(148px,calc(4vw + 101px),184px);height:610px;position:relative;display:flex;align-items:center;justify-content:center;perspective:1100px}
 .luxe-phone{position:absolute;width:245px;aspect-ratio:9/16;filter:drop-shadow(0 34px 80px rgba(0,0,0,.42))}
 .luxe-phone-main{transform:translateY(-10px) rotate(-5deg);z-index:3;width:270px}
-.luxe-phone-back{transform:translate(-148px,52px) rotate(-14deg) scale(.9);z-index:1;opacity:.72}
-.luxe-phone-front{transform:translate(148px,58px) rotate(12deg) scale(.88);z-index:2;opacity:.82}
+.luxe-phone-back{transform:translate(calc(-1 * var(--side-offset)),24px) rotate(-14deg) scale(.9);z-index:1;opacity:.72}
+.luxe-phone-front{transform:translate(var(--side-offset),30px) rotate(12deg) scale(.88);z-index:2;opacity:.82}
 .luxe-video-frame{height:100%;width:100%;background:#11100e;border:1px solid rgba(255,255,255,.16);border-radius:31px;overflow:hidden;position:relative;box-shadow:inset 0 0 0 7px #090807}
 .luxe-video-top{height:30px;display:flex;align-items:center;justify-content:center;gap:6px;position:absolute;top:0;left:0;right:0;z-index:3;background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent)}
 .luxe-video-top span{width:5px;height:5px;background:rgba(255,255,255,.28);border-radius:50%}
@@ -580,8 +580,12 @@ body{background:var(--paper);color:var(--ink)}
 @media(max-width:980px){.hero-media-admin-grid.side{grid-template-columns:1fr}}
 @media(max-width:640px){.luxe-reference-grid[style*="--reference-count: 1"] .luxe-reference{max-width:none}}
 
-/* La portada conserva la misma composición con más espacio visible a los lados. */
+/* En teléfono se separan sin empujar los visuales fuera de la pantalla. */
 @media(min-width:361px) and (max-width:640px){
-  .luxe-phone-back{transform:translate(-96px,48px) rotate(-13deg) scale(.85)}
-  .luxe-phone-front{transform:translate(96px,54px) rotate(12deg) scale(.84)}
+  .luxe-phone-back{transform:translate(-104px,20px) rotate(-13deg) scale(.85)}
+  .luxe-phone-front{transform:translate(104px,26px) rotate(12deg) scale(.84)}
+}
+@media(max-width:360px){
+  .luxe-phone-back{transform:translate(-88px,20px) rotate(-13deg) scale(.85)}
+  .luxe-phone-front{transform:translate(88px,26px) rotate(12deg) scale(.84)}
 }
