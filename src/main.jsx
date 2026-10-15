@@ -8,6 +8,7 @@ import {
   Eye,
   FilePlus2,
   ChevronDown,
+  Download,
   Film,
   Image as ImageIcon,
   Loader2,
@@ -35,6 +36,7 @@ import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
+import { createProposalCalendarPng } from './proposalCalendarImage';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from './proposalTypography';
 import { visibleProposalReferences } from './proposalReferences';
 
@@ -135,20 +137,6 @@ function parseLocalDate(value) {
   return new Date(year, month - 1, day);
 }
 
-function formatMonthShort(date) {
-  return new Intl.DateTimeFormat('es-MX', { month: 'short' }).format(date).replace('.', '').toUpperCase();
-}
-
-function formatDateRange(dates = []) {
-  if (!dates.length) return 'Vista editorial del primer ciclo mensual';
-  const formatter = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' });
-  const sorted = [...dates].sort((a, b) => a - b);
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-  if (first.toDateString() === last.toDateString()) return formatter.format(first);
-  return `${formatter.format(first)} al ${formatter.format(last)}`;
-}
-
 function countPublicationDays(items = []) {
   const days = new Set(
     items
@@ -158,12 +146,6 @@ function countPublicationDays(items = []) {
       .filter(Boolean)
   );
   return days.size;
-}
-
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
 }
 
 function normalizeKey(value = '') {
@@ -1409,14 +1391,8 @@ function ProposalPage({ proposal, compact = false }) {
 
         {showCalendar && <section className="luxe-section luxe-calendar-section">
           <div className="wrap">
-            <div className={`luxe-calendar-head ${proposal.calendarIntro ? '' : 'is-single'}`}>
-              <div>
-                <div className="luxe-kicker">{String(calendarNumber).padStart(2, '0')} · Calendario editorial</div>
-                <h2>{proposal.calendarTitle || 'Calendario del ciclo'}</h2>
-              </div>
-              {proposal.calendarIntro && <p>{proposal.calendarIntro}</p>}
-            </div>
-            <LuxeCalendarPreview plan={primaryPlan} clientName={proposal.clientName} deliverables={primaryDeliverables} periodStart={period.start} periodEnd={period.end} />
+            <div className="luxe-kicker">{String(calendarNumber).padStart(2, '0')} · Calendario de contenido</div>
+            <CalendarImageDownload proposal={proposal} themeVars={themeVars} />
           </div>
         </section>}
 
@@ -1451,91 +1427,44 @@ function ProposalPage({ proposal, compact = false }) {
   );
 }
 
-function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [], periodStart = '', periodEnd = '' }) {
-  const weekdayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-  const filled = (plan || []).filter(item => item?.piece || item?.topic || item?.date);
-  const datedItems = filled
-    .map((item, index) => ({ ...item, index, parsedDate: parseLocalDate(item.date) }))
-    .filter(item => item.parsedDate);
+function CalendarImageDownload({ proposal, themeVars }) {
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
 
-  const hasRealDates = datedItems.length > 0;
-  const anchorDate = parseLocalDate(periodStart) || (hasRealDates
-    ? new Date(Math.min(...datedItems.map(item => item.parsedDate.getTime())))
-    : new Date());
-  const firstDay = addDays(anchorDate, -anchorDate.getDay());
-
-  const datedKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  const placements = new Map();
-
-  function addPlacement(key, item) {
-    const current = placements.get(key) || [];
-    placements.set(key, [...current, item]);
-  }
-
-  if (hasRealDates) {
-    datedItems.forEach((item) => addPlacement(datedKey(item.parsedDate), item));
-  } else {
-    const totalDays = 28;
-    const step = Math.max(2, Math.floor(totalDays / (filled.length + 1 || 1)));
-    filled.forEach((item, index) => {
-      const date = addDays(anchorDate, 1 + index * step);
-      addPlacement(datedKey(date), { ...item, parsedDate: date });
-    });
-  }
-
-  const lastDate = parseLocalDate(periodEnd) || (datedItems.length
-    ? new Date(Math.max(...datedItems.map(item => item.parsedDate.getTime())))
-    : addDays(anchorDate, 34));
-  const daysToShow = Math.min(56, Math.max(35, Math.ceil((Math.max(lastDate, firstDay) - firstDay + 86400000) / 604800000) * 7));
-  const cells = Array.from({ length: daysToShow }, (_, index) => {
-    const date = addDays(firstDay, index);
-    const key = datedKey(date);
-    return { date, key, items: placements.get(key) || [] };
-  });
-
-  function toneFor(item = {}) {
-    for (const value of [item.type, item.piece]) {
-      const kind = String(value || '').toLowerCase();
-      if (/reel|video|vídeo|ugc|clip|promocional/.test(kind)) return 'video';
-      if (/post|carrusel|carousel|foto|photo|imagen|gráfico|grafico|estátic|estatic|static/.test(kind)) return 'static';
+  async function downloadCalendar() {
+    if (working) return;
+    setWorking(true);
+    setError('');
+    try {
+      const { blob, filename } = await createProposalCalendarPng(proposal, {
+        primary: themeVars['--lux-red'], secondary: themeVars['--proposal-secondary']
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (cause) {
+      setError(cause.message || 'No se pudo descargar el calendario. Inténtalo de nuevo.');
+    } finally {
+      setWorking(false);
     }
-    return 'other';
   }
 
   return (
-    <div className="luxe-calendar-card">
-      <div className="luxe-calendar-top">
-        <div>
-          <span>Calendario del cliente</span>
-          <strong>{clientName || 'Cliente'}</strong>
-          <p>{periodStart && periodEnd ? formatDateRange([parseLocalDate(periodStart), parseLocalDate(periodEnd)]) : hasRealDates ? formatDateRange(datedItems.map(item => item.parsedDate)) : 'Agrega fechas para mostrar el calendario real.'}</p>
-        </div>
-        <div className="luxe-calendar-meta luxe-calendar-meta-simple">
-          <div className="luxe-calendar-stat">
-            <strong>{hasRealDates ? countPublicationDays(filled) : filled.length}</strong>
-            <span>{(hasRealDates ? countPublicationDays(filled) : filled.length) === 1 ? 'día de publicación' : 'días de publicación'}</span>
-          </div>
-        </div>
+    <div className="luxe-calendar-download">
+      <div>
+        <span>Tu calendario para llevar</span>
+        <strong>Descarga la propuesta de calendario de contenido</strong>
+        <p>Una imagen con todas las fechas y piezas del ciclo para consultarla cuando quieras.</p>
       </div>
-
-      <div className="luxe-calendar-grid">
-        {weekdayLabels.map((label) => <div className="luxe-calendar-weekday" key={label}>{label}</div>)}
-        {cells.map((cell) => (
-          <div className="luxe-calendar-cell" key={cell.key}>
-            <div className="luxe-calendar-date">
-              <strong>{cell.date.getDate()}</strong>
-              <span>{formatMonthShort(cell.date)}</span>
-            </div>
-            {cell.items.slice(0, 2).map((item, itemIndex) => (
-              <div className={`luxe-calendar-chip tone-${toneFor(item)}`} key={`${cell.key}-${itemIndex}`}>
-                <b>{item.piece || item.type || 'Pieza'}</b>
-                <small>{item.topic || item.objective || ''}</small>
-              </div>
-            ))}
-            {cell.items.length > 2 && <div className="luxe-calendar-more">+{cell.items.length - 2} más</div>}
-          </div>
-        ))}
-      </div>
+      <button type="button" onClick={downloadCalendar} disabled={working}>
+        <Download size={18} aria-hidden="true" /> {working ? 'Preparando imagen…' : 'Descargar calendario PNG'}
+      </button>
+      {error && <p className="luxe-calendar-download-error" role="alert">{error}</p>}
     </div>
   );
 }
