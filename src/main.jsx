@@ -30,6 +30,8 @@ import { checkProposalStorage, uploadProposalMedia } from './mediaService';
 import { getEmbed } from './mediaEmbed';
 import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
+import { preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from './proposalScripts';
+import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
@@ -495,6 +497,7 @@ function ProposalEditor({ id }) {
   const [loadError, setLoadError] = useState('');
   const [activeUpload, setActiveUpload] = useState(null);
   const [storageCheck, setStorageCheck] = useState(null);
+  const [calendarMessage, setCalendarMessage] = useState('');
 
   useEffect(() => {
     getProposalById(id).then((data) => {
@@ -530,6 +533,39 @@ function ProposalEditor({ id }) {
 
   function removeArray(name, index) {
     setProposal(prev => ({ ...prev, [name]: prev[name].filter((_, i) => i !== index) }));
+  }
+
+  function planCalendar(action) {
+    try {
+      const result = action === 'generate'
+        ? generateProposalCalendar(proposal)
+        : rearrangeProposalCalendar(proposal, Math.floor(Math.random() * 1_000_000) + 1);
+      setProposal(prev => ({ ...prev, monthPlan: result.items }));
+      setCalendarMessage(action === 'generate'
+        ? result.added ? `${result.added} piezas agregadas. Revisa temas y fechas antes de guardar.` : 'Las cantidades ya están cubiertas. No se modificó ninguna pieza.'
+        : result.changed ? 'Fechas reacomodadas. Los títulos y guiones permanecen en sus piezas.' : 'No hay otros días disponibles en este periodo.');
+    } catch (error) {
+      setCalendarMessage(error.message);
+    }
+  }
+
+  function exportToProduction() {
+    try {
+      const data = buildProductionCalendarExport({ ...proposal, id });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const name = String(proposal.clientName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_|_$/g, '') || 'cliente';
+      link.href = url;
+      link.download = `propuesta_a_produccion_${name}_${data.period.startDate}_${data.period.endDate}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setCalendarMessage(`Archivo de ${data.items.length} piezas descargado. Impórtalo en el ciclo de este cliente en Euphoria Producción.`);
+    } catch (error) {
+      setCalendarMessage(error.message);
+    }
   }
 
   async function save(status = proposal.status) {
@@ -723,17 +759,28 @@ function ProposalEditor({ id }) {
           <ArraySection
             title="Calendario editorial"
             add={() => addArray('monthPlan', emptyPlan)}
-            hint="Agrega piezas fechadas o importa el JSON de Euphoria OS. Las fechas del calendario se obtienen de las piezas."
+            hint="Define las cantidades y el periodo. Genera el primer calendario aquí; después podrás mover fechas o editar cada pieza."
             options={<>
               <Input label="Título de la sección" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
               <Textarea label="Introducción (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
-              <div className="field-grid">
-                <Input label="Inicio del calendario (opcional)" type="date" value={proposal.periodStart || ''} onChange={v => updateField('periodStart', v)} />
-                <Input label="Fin del calendario (opcional)" type="date" value={proposal.periodEnd || ''} onChange={v => updateField('periodEnd', v)} />
-              </div>
-              <p className="muted">Si dejas estas fechas vacías, se usa el rango de las piezas o del calendario importado. No aparecen en la portada.</p>
             </>}
           >
+            <div className="calendar-planner-panel">
+              <div className="calendar-planner-range">
+                <Input label="Inicio del calendario" type="date" value={proposal.periodStart || resolveProposalPeriod(proposal).start} onChange={v => updateField('periodStart', v)} />
+                <Input label="Fin del calendario" type="date" value={proposal.periodEnd || resolveProposalPeriod(proposal).end} onChange={v => updateField('periodEnd', v)} />
+              </div>
+              <div className="calendar-planner-counts">
+                {CONTENT_COUNTS.map(([key, label]) => <Input key={key} label={label} type="number" min="0" max="400" value={proposal.contentCounts?.[key] ?? 0} onChange={v => updateField('contentCounts', { ...proposal.contentCounts, [key]: v })} />)}
+              </div>
+              <div className="calendar-planner-actions">
+                <button type="button" className="btn btn-primary" onClick={() => planCalendar('generate')}>Generar calendario</button>
+                <button type="button" className="btn btn-secondary" onClick={() => planCalendar('rearrange')}>Reacomodar fechas</button>
+                <button type="button" className="btn btn-secondary" onClick={exportToProduction}>Exportar a Producción</button>
+              </div>
+              {calendarMessage && <p className="calendar-planner-message" role="status">{calendarMessage}</p>}
+              <p className="muted">Cada pieza conserva su tema y guion al cambiar de día. El archivo solo crea el calendario inicial en Producción; allí podrás editarlo después.</p>
+            </div>
             <details className="item-options calendar-import">
               <summary>Importar JSON de Euphoria OS</summary>
               <CalendarImporter
@@ -742,7 +789,10 @@ function ProposalEditor({ id }) {
                   const next = { monthPlan: items || [] };
                   if (result?.source) next.calendarImportSource = result.source;
                   if (result?.period) next.calendarImportPeriod = result.period;
-                  setProposal(prev => ({ ...prev, ...next }));
+                  setProposal(prev => {
+                    const monthPlan = preserveVideoScripts(prev.monthPlan, next.monthPlan);
+                    return { ...prev, ...next, monthPlan, contentCounts: countProposalPieces(monthPlan) };
+                  });
                 }}
                 existingCount={(proposal.monthPlan || []).length}
               />
@@ -762,6 +812,21 @@ function ProposalEditor({ id }) {
               </div>
             ))}
           </ArraySection>
+
+          <EditorSection title="Guiones y estructuras" hint="Usa los videos del calendario. El título y la fecha son los mismos en ambas secciones; solo se mostrará al cliente una pieza cuando agregues su guion o secuencia visual.">
+            <Input label="Título visible de la sección" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />
+            <div className="script-editor-list">
+              {videoPlanEntries(proposal.monthPlan).length === 0 && <p className="muted">Primero agrega al calendario una pieza llamada Reel o Video (también acepta UGC y Clip).</p>}
+              {videoPlanEntries(proposal.monthPlan).map(item => (
+                <article className="script-editor-card" key={item.index}>
+                  <div className="script-editor-head"><b>{item.piece || `Video ${item.index + 1}`}</b><span>{item.date || 'Sin fecha'}</span></div>
+                  <Input label="Título / tema" value={item.topic || ''} onChange={v => updateArray('monthPlan', item.index, 'topic', v)} />
+                  <SelectField label="Formato" value={item.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', item.index, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
+                  <Textarea label={item.scriptMode === 'visual' ? 'Secuencia visual y textos en pantalla' : 'Guion o estructura del video'} value={item.scriptText || ''} onChange={v => updateArray('monthPlan', item.index, 'scriptText', v)} rows={7} maxLength={8000} hint={item.scriptMode === 'visual' ? 'Describe los planos, acciones, textos y cierre.' : 'Puedes separar apertura, desarrollo y cierre en párrafos.'} />
+                </article>
+              ))}
+            </div>
+          </EditorSection>
 
           {proposal.proposalType === 'initial' && <>
             <EditorSection title="Siguiente movimiento">
@@ -958,8 +1023,8 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
   );
 }
 
-function Input({ label, value, onChange, hint, type = 'text' }) {
-  return <label className="field"><span>{label}</span><input type={type} value={value || ''} onChange={e => onChange(e.target.value)} />{hint && <small>{hint}</small>}</label>;
+function Input({ label, value, onChange, hint, type = 'text', min, max }) {
+  return <label className="field"><span>{label}</span><input type={type} min={min} max={max} value={value ?? ''} onChange={e => onChange(e.target.value)} />{hint && <small>{hint}</small>}</label>;
 }
 
 function ColorField({ label, value, onChange }) {
@@ -991,8 +1056,8 @@ function SelectField({ label, value, onChange, options = [] }) {
   );
 }
 
-function Textarea({ label, value, onChange }) {
-  return <label className="field wide"><span>{label}</span><textarea value={value || ''} onChange={e => onChange(e.target.value)} rows={4} /></label>;
+function Textarea({ label, value, onChange, rows = 4, maxLength, hint }) {
+  return <label className="field wide"><span>{label}</span><textarea value={value || ''} onChange={e => onChange(e.target.value)} rows={rows} maxLength={maxLength} />{hint && <small>{hint}</small>}</label>;
 }
 
 function PublicProposal({ slug }) {
@@ -1028,6 +1093,13 @@ function trimText(text = '', max = 150) {
   return `${clean.slice(0, max).replace(/\s+\S*$/, '')}...`;
 }
 
+function formatScriptDate(value) {
+  const date = parseLocalDate(value);
+  return date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' }).format(date)
+    : '';
+}
+
 function ProposalPage({ proposal, compact = false }) {
   proposal = normalizeProposal(proposal);
   const period = resolveProposalPeriod(proposal);
@@ -1040,11 +1112,13 @@ function ProposalPage({ proposal, compact = false }) {
     .filter(s => !/calendario/i.test(`${s?.title || ''} ${s?.text || ''}`))
     .slice(0, 4);
   const primaryPlan = (proposal.monthPlan || []).filter(row => row?.topic || row?.piece);
+  const scriptedVideos = scriptedVideoEntries(proposal.monthPlan || []);
   const pillars = (proposal.pillars || []).filter(p => p?.title || p?.text).slice(0, 3);
   const showIntro = Boolean(proposal.strategyTitle || proposal.strategyText || (!isMonthly && (proposal.diagnosisText || proposal.audienceNeeds || proposal.agendaText)));
   const showSystem = !isMonthly && Boolean(proposal.creativeApproach || pillars.length);
   const showVisuals = references.length > 0;
   const showScope = isMonthly && primaryDeliverables.length > 0;
+  const showScripts = scriptedVideos.length > 0;
   const showCalendar = primaryPlan.length > 0;
   const showSteps = !isMonthly && primarySteps.length > 0;
   let sectionCount = 0;
@@ -1052,6 +1126,7 @@ function ProposalPage({ proposal, compact = false }) {
   const systemNumber = showSystem ? ++sectionCount : null;
   const visualNumber = showVisuals ? ++sectionCount : null;
   const scopeNumber = showScope ? ++sectionCount : null;
+  const scriptsNumber = showScripts ? ++sectionCount : null;
   const calendarNumber = showCalendar ? ++sectionCount : null;
   const stepsNumber = showSteps ? ++sectionCount : null;
   const heroBackItem = proposal.heroMediaBackUrl
@@ -1166,6 +1241,36 @@ function ProposalPage({ proposal, compact = false }) {
             <h2>{proposal.deliverablesTitle || 'Alcance del ciclo'}</h2>
             <div className="luxe-scope-grid">
               {primaryDeliverables.map((item, i) => <div className="luxe-scope-item" key={i}><strong>{item.value}</strong><span>{item.label}</span></div>)}
+            </div>
+          </div>
+        </section>}
+
+        {showScripts && <section className="luxe-section luxe-scripts-section">
+          <div className="wrap">
+            <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · Guiones del ciclo</div>
+            <h2>{proposal.scriptsTitle || 'Cada pieza, una idea clara.'}</h2>
+            <div className="luxe-script-list">
+              {scriptedVideos.map((item, index) => (
+                <details className="luxe-script-item" key={`${item.piece}-${item.index}`}>
+                  <summary>
+                    <span className="luxe-script-number">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="luxe-script-copy">
+                      <span className="luxe-script-piece">{item.piece || `Video ${index + 1}`}</span>
+                      <strong>{item.topic || item.piece || `Video ${index + 1}`}</strong>
+                      <span className="luxe-script-preview">{trimText(item.scriptText, 115)}</span>
+                    </span>
+                    <span className="luxe-script-side">
+                      <span className="luxe-script-mode">{item.scriptMode === 'visual' ? 'Sin voz' : 'Con voz'}</span>
+                      {formatScriptDate(item.date) && <span className="luxe-script-date">Se publica {formatScriptDate(item.date)}</span>}
+                    </span>
+                    <span className="luxe-script-toggle" aria-hidden="true">+</span>
+                  </summary>
+                  <div className="luxe-script-body">
+                    <span>{item.scriptMode === 'visual' ? 'Secuencia visual' : 'Guion / estructura'}</span>
+                    <p>{item.scriptText}</p>
+                  </div>
+                </details>
+              ))}
             </div>
           </div>
         </section>}
