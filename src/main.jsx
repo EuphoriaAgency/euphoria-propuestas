@@ -19,6 +19,7 @@ import {
   UploadCloud
 } from 'lucide-react';
 import './styles.css';
+import './mediaPresentation.css';
 import { auth, firebaseReady } from './firebase';
 import { createBlankProposal, defaultProposal, normalizeProposal } from './defaultProposal';
 import {
@@ -32,6 +33,7 @@ import {
 } from './proposalService';
 import { checkProposalStorage, uploadProposalMedia } from './mediaService';
 import { getEmbed } from './mediaEmbed';
+import { coverMediaLayout, editorialReferences } from './proposalMediaLayout';
 import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
@@ -822,11 +824,6 @@ function ProposalEditor({ id }) {
             </ArraySection>
           </>}
 
-          <EditorSection title="Cierre (opcional)" {...accordion('close', proposal.ctaTitle || 'Sin cierre')}>
-            <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
-            <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
-          </EditorSection>
-
           <ArraySection
             title="Referencias (opcional)"
             {...accordion('references', `${proposal.references.length} referencias`)}
@@ -947,7 +944,7 @@ function CoverMediaEditor({ proposal, onChange, activeUpload, setActiveUpload, s
     { field: 'heroMediaFrontUrl', key: 'cover-right', label: 'Visual derecho', hint: 'Si lo dejas vacío, usa la referencia visual 3.' }
   ];
   return <div className="cover-media-editor">
-    <strong className="cover-media-heading">Visuales de portada (opcionales)</strong>
+    <strong className="cover-media-heading">Visuales de portada · imagen al centro</strong>
     <div className="cover-media-strip" role="group" aria-label="Visuales de portada">
       {visuals.map(visual => {
         const embed = getEmbed(proposal[visual.field]);
@@ -1223,18 +1220,8 @@ function ProposalPage({ proposal, compact = false }) {
   const stepsNumber = showSteps ? ++sectionCount : null;
   const calendarNumber = showCalendar ? ++sectionCount : null;
   const visualNumber = showVisuals ? ++sectionCount : null;
-  const heroBackItem = proposal.heroMediaBackUrl
-    ? { url: proposal.heroMediaBackUrl, title: 'Hero visual izquierdo' }
-    : references[1];
-  const heroMainItem = proposal.heroMediaUrl
-    ? { url: proposal.heroMediaUrl, title: 'Hero visual principal' }
-    : references[0];
-  const heroFrontItem = proposal.heroMediaFrontUrl
-    ? { url: proposal.heroMediaFrontUrl, title: 'Hero visual derecho' }
-    : references[2];
-  const heroCenter = [heroMainItem, heroBackItem, heroFrontItem].find(item => item?.url);
-  const heroLeft = heroBackItem?.url && heroBackItem !== heroCenter ? heroBackItem : null;
-  const heroRight = heroFrontItem?.url && heroFrontItem !== heroCenter ? heroFrontItem : null;
+  const cover = coverMediaLayout(proposal, references);
+  const referenceLayout = editorialReferences(references);
 
   return (
     <div className={`${compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'}${proposal.themePreset === 'custom' && themeVars['--lux-red'] !== themeVars['--proposal-secondary'] ? ' dual-accent' : ''}`} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
@@ -1253,10 +1240,19 @@ function ProposalPage({ proposal, compact = false }) {
             <p>{proposal.positioning}</p>
           </div>
 
-          {heroCenter && <div className="luxe-phone-stage" aria-label="Visuales de portada de la propuesta">
-            {heroLeft && <div className="luxe-phone luxe-phone-back"><VideoMockup refItem={heroLeft} inCover /></div>}
-            <div className="luxe-phone luxe-phone-main"><VideoMockup refItem={heroCenter} inCover /></div>
-            {heroRight && <div className="luxe-phone luxe-phone-front"><VideoMockup refItem={heroRight} inCover /></div>}
+          {cover.center && <div className="luxe-cover-stage" aria-label="Visuales de portada de la propuesta">
+            <div className="luxe-cover-gallery">
+              <div className={`luxe-cover-slot is-left${cover.left ? '' : ' is-empty'}`}>
+                {cover.left && <VideoMockup refItem={cover.left} inCover />}
+              </div>
+              <div className={`luxe-cover-slot is-main${getEmbed(cover.center.url).type === 'image' ? ' is-image' : ''}`}>
+                <VideoMockup refItem={cover.center} inCover />
+              </div>
+              <div className={`luxe-cover-slot is-right${cover.right ? '' : ' is-empty'}`}>
+                {cover.right && <VideoMockup refItem={cover.right} inCover />}
+              </div>
+            </div>
+            <MediaCarousel items={cover.items} inCover />
           </div>}
         </div>
 
@@ -1370,29 +1366,19 @@ function ProposalPage({ proposal, compact = false }) {
             </div>
             {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
           </div>
-          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
-            {references.map((ref, i) => (
-              <article className="luxe-reference" key={i}>
-                <VideoMockup refItem={ref} label={ref.pillar || `Referencia ${i + 1}`} />
-                <div>
-                  <span>{ref.pillar}</span>
-                  <h3>{ref.title}</h3>
-                  <p>{ref.note}</p>
-                </div>
-              </article>
-            ))}
+          <div className="wrap luxe-reference-desktop">
+            {referenceLayout.featured && referenceLayout.remaining.length ? <div className="luxe-reference-editorial">
+              <ReferenceArticle refItem={referenceLayout.featured} featured />
+              <div className="luxe-reference-rail">
+                {referenceLayout.remaining.map((ref, i) => <ReferenceArticle refItem={ref} key={`${i}-${ref.url}`} />)}
+              </div>
+            </div> : <div className="luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
+              {references.map((ref, i) => <ReferenceArticle refItem={ref} key={`${i}-${ref.url}`} />)}
+            </div>}
           </div>
+          <div className="wrap luxe-reference-mobile"><MediaCarousel items={references} /></div>
         </section>}
       </main>
-
-      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close">
-        <div className="wrap">
-          <span className="luxe-kicker">Cierre</span>
-          {proposal.ctaTitle && <h2>{proposal.ctaTitle}</h2>}
-          {proposal.ctaText && <p>{proposal.ctaText}</p>}
-          <div className="luxe-close-foot">Euphoria Agency · {proposal.city}</div>
-        </div>
-      </footer>}
     </div>
   );
 }
@@ -1452,13 +1438,20 @@ function VideoMockup({ refItem, label, inCover = false }) {
   const safe = refItem || {};
   const embed = getEmbed(safe.url);
   const [playbackError, setPlaybackError] = useState(false);
-  useEffect(() => setPlaybackError(false), [safe.url]);
+  const [imageRatio, setImageRatio] = useState(null);
+  useEffect(() => { setPlaybackError(false); setImageRatio(null); }, [safe.url]);
   return (
-    <div className="luxe-video-frame">
-      <div className="luxe-video-top"><span /> <span /> <span /></div>
+    <div className={`luxe-video-frame luxe-media-frame is-${embed.type}`} style={imageRatio ? { '--media-ratio': imageRatio } : undefined}>
       <div className="luxe-video-body">
-        {embed.type === 'image' && <img src={safe.url} alt={inCover ? 'Visual de portada' : safe.title || label || 'Referencia visual'} />}
-        {embed.type === 'video' && !playbackError && <video src={embed.src} preload="none" playsInline controls onError={() => setPlaybackError(true)} />}
+        {embed.type === 'image' && <img src={embed.src} alt={inCover ? 'Visual de portada' : safe.title || label || 'Referencia visual'} onLoad={event => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          if (naturalWidth && naturalHeight) setImageRatio(naturalWidth / naturalHeight);
+        }} />}
+        {embed.type === 'video' && !playbackError && <video src={embed.src} preload="metadata" playsInline controls
+          onLoadedMetadata={event => {
+            const { videoWidth, videoHeight } = event.currentTarget;
+            if (videoWidth && videoHeight) setImageRatio(videoWidth / videoHeight);
+          }} onError={() => setPlaybackError(true)} />}
         {embed.type === 'iframe' && <iframe src={embed.src} title={inCover ? 'Visual de portada' : safe.title || label || 'Referencia visual'} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
         {(embed.type === 'link' || embed.type === 'empty' || playbackError) && (
           <div className={`luxe-video-placeholder${inCover ? ' is-cover' : ''}`}>
@@ -1469,6 +1462,59 @@ function VideoMockup({ refItem, label, inCover = false }) {
       </div>
     </div>
   );
+}
+
+function ReferenceCaption({ refItem }) {
+  const type = getEmbed(refItem.url).type;
+  const format = type === 'image' ? 'Imagen' : type === 'video' || type === 'iframe' ? 'Reel / video' : 'Referencia';
+  return <div className="luxe-reference-copy">
+    <span>{format}{refItem.pillar ? ` · ${refItem.pillar}` : ''}</span>
+    {refItem.title && <h3>{refItem.title}</h3>}
+    {refItem.note && <p>{refItem.note}</p>}
+  </div>;
+}
+
+function ReferenceArticle({ refItem, featured = false }) {
+  return <article className={`luxe-reference${featured ? ' is-featured' : ''}`}>
+    <VideoMockup refItem={refItem} label={refItem.pillar || 'Referencia visual'} />
+    <ReferenceCaption refItem={refItem} />
+  </article>;
+}
+
+function MediaCarousel({ items, inCover = false }) {
+  const [selected, setSelected] = useState(0);
+  const touchStart = useRef(null);
+  const activeIndex = Math.min(selected, items.length - 1);
+  const active = items[activeIndex];
+  if (!active) return null;
+  const move = delta => setSelected(index => Math.min(items.length - 1, Math.max(0, index + delta)));
+  return <div className={`luxe-media-carousel${inCover ? ' is-cover' : ' is-references'}`}
+    onTouchStart={event => { touchStart.current = event.touches[0]?.clientX ?? null; }}
+    onTouchEnd={event => {
+      if (touchStart.current === null) return;
+      const delta = event.changedTouches[0]?.clientX - touchStart.current;
+      touchStart.current = null;
+      if (Math.abs(delta) > 45) move(delta < 0 ? 1 : -1);
+    }}>
+    <div className="luxe-carousel-current">
+      <VideoMockup key={active.url} refItem={active} inCover={inCover} />
+      {!inCover && <ReferenceCaption refItem={active} />}
+    </div>
+    {items.length > 1 && <div className="luxe-carousel-navigation">
+      {!inCover && <span aria-live="polite">{activeIndex + 1} / {items.length}</span>}
+      <div className="luxe-carousel-thumbs" role="group" aria-label={inCover ? 'Visuales de portada' : 'Referencias visuales'}>
+        {items.map((item, index) => {
+          const embed = getEmbed(item.url);
+          return <button type="button" key={`${index}-${item.url}`} className={index === activeIndex ? 'is-active' : ''}
+            aria-label={`Mostrar ${inCover ? 'visual de portada' : 'referencia'} ${index + 1}${item.title ? `: ${item.title}` : ''}`}
+            aria-pressed={index === activeIndex} onClick={() => setSelected(index)}>
+            {embed.type === 'image' ? <img src={embed.src} alt="" loading="lazy" />
+              : embed.type === 'link' ? <ExternalLink size={20} aria-hidden="true" /> : <Film size={20} aria-hidden="true" />}
+          </button>;
+        })}
+      </div>
+    </div>}
+  </div>;
 }
 
 function ProposalSection({ num, label, title, alt = false, children }) {
