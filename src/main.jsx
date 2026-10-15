@@ -26,6 +26,7 @@ import {
   createProposal,
   deleteProposal,
   duplicateProposal,
+  ensurePublicLink,
   getProposalById,
   getPublicProposal,
   listProposals,
@@ -41,6 +42,7 @@ import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './prop
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
 import { createProposalCalendarPng } from './proposalCalendarImage';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from './proposalTypography';
+import { isReadableSlug, publicProposalPath } from './proposalPublicLink';
 import { visibleProposalReferences } from './proposalReferences';
 
 const emptyPillar = { label: '', title: '', text: '' };
@@ -298,7 +300,20 @@ function App() {
   if (path.startsWith('/p/')) return <PublicProposal slug={path.replace('/p/', '').replace(/\/$/, '')} />;
   if (path.startsWith('/admin/edit/')) return <AdminGate><ProposalEditor id={path.replace('/admin/edit/', '').replace(/\/$/, '')} /></AdminGate>;
   if (path.startsWith('/admin')) return <AdminGate><Dashboard /></AdminGate>;
+  const readableSlug = path.slice(1).replace(/\/$/, '');
+  if (isReadableSlug(readableSlug)) return <PublicProposal slug={readableSlug} />;
   return <Home />;
+}
+
+async function copyPublicProposalLink(item) {
+  const ready = await ensurePublicLink(item);
+  const url = `${window.location.origin}${publicProposalPath(ready)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    return { ready, message: `Enlace copiado: ${url}` };
+  } catch {
+    return { ready, message: `Enlace listo para copiar: ${url}` };
+  }
 }
 
 function Home() {
@@ -386,6 +401,7 @@ function Dashboard() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   async function refresh() {
     setLoading(true);
@@ -441,6 +457,18 @@ function Dashboard() {
     }
   }
 
+  async function copyLink(item) {
+    setError('');
+    setNotice('');
+    try {
+      const { ready, message } = await copyPublicProposalLink(item);
+      setItems(current => current.map(value => value.id === ready.id ? ready : value));
+      setNotice(message);
+    } catch {
+      setError('No se pudo crear el enlace legible. Revisa los permisos y vuelve a intentarlo.');
+    }
+  }
+
   return (
     <div className="admin-shell">
       <AdminHeader />
@@ -458,6 +486,7 @@ function Dashboard() {
         </div>
 
         {error && <div className="error-box">{error}</div>}
+        {notice && <div className="save-message" role="status">{notice}</div>}
         {loading ? <LoadingScreen label="Cargando propuestas" /> : (
           <div className="proposal-list">
             {items.length === 0 && <div className="empty-state">No hay propuestas todavía. Crea una nueva o carga el ejemplo de la Dra. Mabel.</div>}
@@ -470,7 +499,8 @@ function Dashboard() {
                 </div>
                 <div className="row gap wrap-row">
                   <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
-                  {item.status === 'published' && <a className="icon-btn" title="Abrir enlace público" href={`/p/${item.id}`} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver</a>}
+                  {item.status === 'published' && <a className="icon-btn" title="Abrir enlace público" href={publicProposalPath(item)} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver</a>}
+                  {item.status === 'published' && <button className="icon-btn" onClick={() => copyLink(item)}><Copy size={17} /> Copiar enlace</button>}
                   <button className="icon-btn" onClick={() => duplicate(item)}><Copy size={17} /> Duplicar</button>
                   <button className="icon-btn danger" onClick={() => remove(item.id)}><Trash2 size={17} /> Eliminar</button>
                 </div>
@@ -620,9 +650,9 @@ function ProposalEditor({ id }) {
     const payload = { ...proposal, status };
     delete payload.id;
     try {
-      await updateProposal(id, payload);
-      setProposal(prev => ({ ...prev, ...payload }));
-      setMessage(status === 'published' ? 'Cambios publicados.' : 'Cambios guardados.');
+      const result = await updateProposal(id, payload);
+      setProposal(prev => ({ ...prev, ...payload, ...result }));
+      setMessage(status === 'published' ? `Publicada. Enlace: ${window.location.origin}${publicProposalPath({ id, ...payload, ...result })}` : 'Cambios guardados.');
     } catch (err) {
       setMessage('Error al guardar. Revisa Firebase o conexión.');
     } finally {
@@ -650,6 +680,7 @@ function ProposalEditor({ id }) {
   const coverVisualCount = [proposal.heroMediaUrl, proposal.heroMediaBackUrl, proposal.heroMediaFrontUrl].filter(Boolean).length;
   const dateSummary = proposal.periodStart && proposal.periodEnd ? `${proposal.periodStart} – ${proposal.periodEnd}` : 'Sin fechas';
   const productionOnly = proposal.showCalendar === false;
+  const publicPath = publicProposalPath({ ...proposal, id });
   const usedVideoNumbers = new Set(proposal.monthPlan.filter(isVideoPiece)
     .map(item => Number(String(item.piece || '').match(/\b(?:reel|video)\s*(\d+)\b/i)?.[1])).filter(Boolean));
   const nextVideoNumber = Array.from({ length: proposal.monthPlan.length + 1 }, (_, index) => index + 1)
@@ -662,8 +693,17 @@ function ProposalEditor({ id }) {
         <section className="editor-panel">
           <div className="editor-topbar">
             <a className="plain-link" href="/admin"><ArrowLeft size={16} /> Volver</a>
-            <div className="row gap">
-              {proposal.status === 'published' && <a className="btn btn-secondary" href={`/p/${id}`} target="_blank" rel="noreferrer"><Eye size={16} /> Ver enlace</a>}
+            <div className="row gap wrap-row">
+              {proposal.status === 'published' && <a className="btn btn-secondary" href={publicPath} target="_blank" rel="noreferrer"><Eye size={16} /> Ver enlace</a>}
+              {proposal.status === 'published' && <button className="btn btn-secondary" onClick={async () => {
+                try {
+                  const { ready, message: text } = await copyPublicProposalLink({ ...proposal, id });
+                  setProposal(ready);
+                  setMessage(text);
+                } catch {
+                  setMessage('No se pudo crear el enlace legible. Revisa tu acceso.');
+                }
+              }}><Copy size={16} /> Copiar enlace</button>}
               <button className="btn btn-secondary" disabled={saving || Boolean(activeUpload)} onClick={() => save()}><Save size={16} /> Guardar</button>
               <button className="btn btn-primary" disabled={saving || Boolean(activeUpload)} onClick={() => save('published')}>{saving ? <Loader2 className="spin" size={16} /> : null} {proposal.status === 'published' ? 'Actualizar publicación' : 'Publicar'}</button>
             </div>
@@ -922,12 +962,19 @@ function ArraySection({ title, children, add, disableAdd = false, hint, options,
 }
 
 function TypographySelect({ value, onChange }) {
-  return <SelectField
-    label="Tipografía de toda la propuesta"
-    value={value}
-    onChange={onChange}
-    options={TYPOGRAPHY_PRESETS}
-  />;
+  const combinations = TYPOGRAPHY_PRESETS.filter(item => !item.value.startsWith('single-'));
+  const singleFonts = TYPOGRAPHY_PRESETS.filter(item => item.value.startsWith('single-'));
+  return <label className="field">
+    <span>Tipografía de toda la propuesta</span>
+    <select value={value || 'editorial'} onChange={event => onChange(event.target.value)}>
+      <optgroup label="Combinaciones de título y texto">
+        {combinations.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+      </optgroup>
+      <optgroup label="Una sola fuente">
+        {singleFonts.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+      </optgroup>
+    </select>
+  </label>;
 }
 
 function CompactItemList({ items, selectedIndex, onSelect, labelFor, metaFor, imageFor, getIndex = (_, index) => index, disabled = false }) {

@@ -10,6 +10,31 @@ import { buildCalendarImageLayout } from '../src/proposalCalendarImage.js';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from '../src/proposalTypography.js';
 import { visibleProposalReferences } from '../src/proposalReferences.js';
 import { coverMediaLayout, editorialReferences, editorialReferenceRows } from '../src/proposalMediaLayout.js';
+import { isReadableSlug, proposalSlugCandidates, publicProposalPath, slugify, suggestedProposalSlug } from '../src/proposalPublicLink.js';
+
+test('la URL pública usa cliente y mes sin dejar de aceptar el enlace antiguo', () => {
+  const proposal = {
+    id: 'UX44DxBsaBVOvS8vPujO', clientName: 'Dr. Toyeiros',
+    heroEyebrow: 'Propuesta de contenido Octubre', periodStart: '2026-10-01', monthPlan: []
+  };
+  assert.equal(suggestedProposalSlug(proposal), 'dr-toyeiros-octubre');
+  assert.equal(Array.from(proposalSlugCandidates({ ...proposal, slug: 'nombre-interno-antiguo' }))[0], 'dr-toyeiros-octubre');
+  assert.deepEqual(Array.from(proposalSlugCandidates(proposal)).slice(0, 3), [
+    'dr-toyeiros-octubre', 'dr-toyeiros-octubre-2026', 'dr-toyeiros-octubre-2'
+  ]);
+  assert.equal(publicProposalPath(proposal), '/p/UX44DxBsaBVOvS8vPujO');
+  assert.equal(publicProposalPath({ ...proposal, slug: 'dr-toyeiros-octubre', publicLinkReady: true }), '/dr-toyeiros-octubre');
+  assert.equal(slugify('Dra. Muñoz · Salud'), 'dra-munoz-salud');
+  assert.equal(isReadableSlug('admin'), false);
+  assert.equal(isReadableSlug('dr-toyeiros-octubre'), true);
+});
+
+test('la lista ofrece al menos el doble de tipografías con fuentes realmente distintas', () => {
+  assert.ok(TYPOGRAPHY_PRESETS.length >= 20);
+  assert.equal(new Set(TYPOGRAPHY_PRESETS.map(item => item.value)).size, TYPOGRAPHY_PRESETS.length);
+  assert.ok(new Set(TYPOGRAPHY_PRESETS.map(item => item.heading)).size >= 12);
+  assert.equal(typographyVariables('single-space')['--proposal-body-font'], "'Space Grotesk', system-ui, sans-serif");
+});
 
 test('una imagen lateral pasa al centro de portada y mantiene ambos reels visibles', () => {
   const cover = coverMediaLayout({
