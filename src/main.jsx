@@ -1406,7 +1406,7 @@ function ProposalPage({ proposal, compact = false }) {
             {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
           </div>
           <div className="wrap luxe-reference-desktop">
-            {referenceRows.map((row, index) => <div className={`luxe-reference-row count-${row.length}${index === 0 && getEmbed(row[0].url).type === 'image' ? ' has-featured' : ''}`} key={`${index}-${row[0]?.url}`}>
+            {referenceRows.map((row, index) => <div className={`luxe-reference-row count-${row.length}${index === 0 && getEmbed(row[0].url).type === 'image' ? ' has-featured' : ''}${row.length === 4 && row.filter(ref => getEmbed(ref.url).type === 'image').length === 2 ? ' has-paired-images' : ''}`} key={`${index}-${row[0]?.url}`}>
               {row.map((ref, i) => <ReferenceArticle refItem={ref} featured={index === 0 && i === 0 && getEmbed(ref.url).type === 'image'} key={`${i}-${ref.url}`} />)}
             </div>)}
           </div>
