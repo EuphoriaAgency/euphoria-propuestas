@@ -1364,7 +1364,7 @@ function LuxeCalendarPreview({ plan = [], clientName = '', deliverables = [], pe
   function toneFor(item = {}) {
     for (const value of [item.type, item.piece]) {
       const kind = String(value || '').toLowerCase();
-      if (/reel|video|vídeo|ugc|clip/.test(kind)) return 'video';
+      if (/reel|video|vídeo|ugc|clip|promocional/.test(kind)) return 'video';
       if (/post|carrusel|carousel|foto|photo|imagen|gráfico|grafico|estátic|estatic|static/.test(kind)) return 'static';
     }
     return 'other';
