@@ -780,3 +780,51 @@ body{background:var(--paper);color:var(--ink)}
   .admin-brand small{font-size:9px}
   .admin-shell .admin-title-row h1,.admin-shell .editor-context h1{font-size:45px}
 }
+
+/* El segundo color personalizado acompaña a la propuesta completa.
+   Los presets de un solo tono conservan su presentación anterior. */
+.dual-accent .luxe-kicker,
+.dual-accent .luxe-script-piece,
+.dual-accent .luxe-script-body>span,
+.dual-accent .luxe-script-toggle,
+.dual-accent .luxe-reference span,
+.dual-accent .luxe-calendar-top span,
+.dual-accent .luxe-calendar-stat strong,
+.dual-accent .luxe-scope-item strong,
+.dual-accent .luxe-pillar-row small,
+.dual-accent .luxe-metric strong,
+.dual-accent .luxe-step span{
+  color:var(--proposal-primary-ink);
+}
+.dual-accent .luxe-visuals,
+.dual-accent .luxe-scripts-section{
+  background-image:radial-gradient(circle at 95% 8%,color-mix(in srgb,var(--proposal-secondary) 8%,transparent),transparent 42%);
+}
+.dual-accent .luxe-calendar-section{
+  background-image:radial-gradient(circle at 5% 6%,color-mix(in srgb,var(--proposal-secondary) 7%,transparent),transparent 48%);
+}
+.dual-accent .luxe-visuals .luxe-kicker,
+.dual-accent .luxe-scope .luxe-kicker,
+.dual-accent .luxe-calendar-section .luxe-kicker,
+.dual-accent .luxe-calendar-top span,
+.dual-accent .luxe-calendar-stat strong{
+  color:var(--proposal-secondary-ink);
+}
+.dual-accent .luxe-reference:nth-child(even) span,
+.dual-accent .luxe-pillar-row:nth-child(even) small,
+.dual-accent .luxe-metric:nth-child(even) strong,
+.dual-accent .luxe-step:nth-child(even) span,
+.dual-accent .luxe-scope-item:nth-child(even) strong,
+.dual-accent .luxe-script-item:nth-child(even) .luxe-script-piece,
+.dual-accent .luxe-script-item:nth-child(even) .luxe-script-body>span,
+.dual-accent .luxe-script-item:nth-child(even) .luxe-script-toggle{
+  color:var(--proposal-secondary-ink);
+}
+.dual-accent .luxe-script-item:nth-child(even) .luxe-script-body{
+  border-color:color-mix(in srgb,var(--proposal-secondary) 30%,var(--lux-line));
+}
+.dual-accent .luxe-calendar-chip.tone-static{
+  background:color-mix(in srgb,var(--proposal-secondary) 22%,#fffdf8);
+  border-color:color-mix(in srgb,var(--proposal-secondary) 58%,#fffdf8);
+  color:var(--proposal-secondary-ink);
+}

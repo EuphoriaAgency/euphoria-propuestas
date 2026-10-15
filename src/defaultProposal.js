@@ -12,6 +12,7 @@ export const defaultProposal = {
   themePreset: 'wine',
   typographyPreset: 'editorial',
   sectionTypography: {},
+  showCalendar: true,
   customAccent: '#8b1628',
   customAccentDark: '#5f1421',
   heroEyebrow: 'Estrategia digital · 2026',
@@ -119,6 +120,7 @@ export function createBlankProposal() {
     themePreset: 'black',
     typographyPreset: 'editorial',
     sectionTypography: {},
+    showCalendar: true,
     periodStart: '',
     periodEnd: '',
     heroEyebrow: '',
@@ -174,6 +176,7 @@ export function normalizeProposal(data = {}) {
     ...headings,
     ...data,
     proposalType: isInitial ? 'initial' : 'monthly',
+    showCalendar: data.showCalendar !== false,
     typographyPreset: data.typographyPreset || empty.typographyPreset,
     sectionTypography: data.sectionTypography && typeof data.sectionTypography === 'object' && !Array.isArray(data.sectionTypography)
       ? { ...data.sectionTypography } : {},

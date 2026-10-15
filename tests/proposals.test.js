@@ -17,6 +17,30 @@ test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () =>
   assert.deepEqual(draft.monthPlan, []);
   assert.equal(draft.scriptsTitle, 'Cada pieza, una idea clara.');
   assert.equal(draft.ctaTitle, '');
+  assert.equal(draft.showCalendar, true);
+});
+
+test('solo producción publica videos desarrollados sin fechas y conserva la opción de volver al calendario', () => {
+  const legacy = normalizeProposal({ clientName: 'Cliente anterior', monthPlan: [{ date: '2026-11-04', piece: 'Reel 1', topic: 'Tema' }] });
+  assert.equal(legacy.showCalendar, true);
+  assert.equal(validatePublication(legacy), '');
+  const production = normalizeProposal({
+    ...legacy,
+    showCalendar: false,
+    monthPlan: [
+      { piece: 'Reel 1', type: 'Reel', topic: 'Servicios', scriptText: 'Apertura, desarrollo y cierre.' },
+      { piece: 'Video 2', topic: 'Testimonio', scriptMode: 'visual', scriptText: 'Planos de la sesión.' }
+    ]
+  });
+  assert.equal(production.showCalendar, false);
+  assert.equal(validatePublication(production), '');
+  assert.deepEqual(scriptedVideoEntries(production.monthPlan).map(item => item.piece), ['Reel 1', 'Video 2']);
+  assert.match(validatePublication({ ...production, monthPlan: [{ piece: 'Reel 1', topic: 'Tema' }] }), /guion o estructura/);
+  assert.match(validatePublication({ ...production, monthPlan: [{ piece: 'Post 1', topic: 'Solo post' }] }), /al menos un video/);
+  assert.match(validatePublication({ ...production, showCalendar: true }), /fecha/);
+  const next = createNextCycleProposal(production);
+  assert.equal(next.showCalendar, false);
+  assert.deepEqual(next.monthPlan, []);
 });
 
 test('duplicar conserva la identidad y el color, pero limpia los datos del ciclo anterior', () => {
