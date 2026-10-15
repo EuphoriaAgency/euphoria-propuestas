@@ -50,6 +50,25 @@ test('cuatro referencias quedan en una fila editorial y los grupos largos no dej
   }
 });
 
+test('dos imágenes y dos reels comparten una fila simétrica sin cambiar el carrusel móvil', () => {
+  const references = [
+    { url: 'https://example.com/reel-1.mp4' },
+    { url: 'https://example.com/imagen-1.jpg' },
+    { url: 'https://example.com/imagen-2.png' },
+    { url: 'https://example.com/reel-2.mp4' }
+  ];
+  const rows = editorialReferenceRows(references);
+  assert.deepEqual(rows.map(row => row.map(item => item.url)), [[
+    references[1].url, references[0].url, references[3].url, references[2].url
+  ]]);
+  assert.deepEqual(references.map(item => item.url), [
+    'https://example.com/reel-1.mp4',
+    'https://example.com/imagen-1.jpg',
+    'https://example.com/imagen-2.png',
+    'https://example.com/reel-2.mp4'
+  ]);
+});
+
 test('la portada toma miniaturas de cargas propias y de referencias heredadas', () => {
   const references = [{ url: 'https://example.com/reel.mp4', posterUrl: 'https://example.com/reel.jpg' }];
   assert.equal(coverMediaLayout({}, references).center.posterUrl, references[0].posterUrl);

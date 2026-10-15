@@ -38,7 +38,14 @@ export function editorialReferences(references = []) {
 // galería; el resto conserva su orden y se distribuye en filas de 2 a 4.
 export function editorialReferenceRows(references = []) {
   const { featured, remaining } = editorialReferences(references);
-  const ordered = featured ? [featured, ...remaining] : remaining;
+  let ordered = featured ? [featured, ...remaining] : remaining;
+  // En una fila de cuatro, dos imágenes flanquean los dos reels. La versión
+  // móvil sigue usando el orden original de references en su carrusel.
+  if (ordered.length === 4 && ordered.filter(item => getEmbed(item.url).type === 'image').length === 2) {
+    const images = ordered.filter(item => getEmbed(item.url).type === 'image');
+    const other = ordered.filter(item => getEmbed(item.url).type !== 'image');
+    ordered = [images[0], ...other, images[1]];
+  }
   const rows = [];
   for (let index = 0; index < ordered.length;) {
     const left = ordered.length - index;

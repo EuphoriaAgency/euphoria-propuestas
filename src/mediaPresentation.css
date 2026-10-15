@@ -54,6 +54,17 @@
 .luxe-cover-slot .luxe-media-frame {width:100%;max-height:590px;border-radius:22px}
 .luxe-cover-slot.is-main .luxe-media-frame {border-color:rgba(255,255,255,.28);box-shadow:0 34px 95px rgba(0,0,0,.42)}
 .luxe-cover-slot.is-empty {visibility:hidden}
+@media(min-width:981px){
+  /* Reserva aire entre el visual principal y la línea del pie en escritorio. */
+  .luxe-page:not(.compact-preview) .luxe-cover-gallery {grid-template-columns:minmax(0,250px) minmax(0,400px) minmax(0,250px)}
+  .luxe-page:not(.compact-preview) .luxe-cover-slot.is-main {max-width:400px}
+  .luxe-page:not(.compact-preview) .luxe-cover-slot.is-main:not(.is-image) {max-width:325px}
+  .luxe-page:not(.compact-preview) .luxe-cover-slot.is-main .luxe-media-frame {
+    width:min(100%,calc(515px * var(--media-ratio,9 / 16)));
+    max-height:515px;
+    margin-inline:auto;
+  }
+}
 .compact-preview .luxe-cover-gallery {
   grid-template-columns:minmax(0,145px) minmax(0,255px) minmax(0,145px);
   min-height:380px;max-width:620px;gap:14px;
@@ -83,6 +94,12 @@
 .luxe-reference-row.has-featured.count-2 {grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)}
 .luxe-reference-row.has-featured.count-3 {grid-template-columns:minmax(0,1.65fr) repeat(2,minmax(0,.85fr))}
 .luxe-reference-row.has-featured.count-4 {grid-template-columns:minmax(0,1.85fr) repeat(3,minmax(0,.8fr))}
+@media(min-width:981px){
+  /* Dos imágenes enmarcan los reels y reciben la misma anchura. */
+  .luxe-reference-row.has-paired-images.count-4 {
+    grid-template-columns:minmax(0,1.35fr) repeat(2,minmax(0,.82fr)) minmax(0,1.35fr);
+  }
+}
 .luxe-reference {min-width:0;align-content:start;gap:16px}
 .luxe-reference .luxe-media-frame {
   width:100%;min-height:0;max-height:680px;margin-inline:auto;
