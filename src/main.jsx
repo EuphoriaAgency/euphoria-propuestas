@@ -30,7 +30,7 @@ import { checkProposalStorage, uploadProposalMedia } from './mediaService';
 import { getEmbed } from './mediaEmbed';
 import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
-import { preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from './proposalScripts';
+import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
 
 const emptyPillar = { label: '', title: '', text: '' };
@@ -543,7 +543,9 @@ function ProposalEditor({ id }) {
       setProposal(prev => ({ ...prev, monthPlan: result.items }));
       setCalendarMessage(action === 'generate'
         ? result.added ? `${result.added} piezas agregadas. Revisa temas y fechas antes de guardar.` : 'Las cantidades ya están cubiertas. No se modificó ninguna pieza.'
-        : result.changed ? 'Fechas reacomodadas. Los títulos y guiones permanecen en sus piezas.' : 'No hay otros días disponibles en este periodo.');
+        : result.changedDateCount ? `${result.changedDateCount} días nuevos en esta variación. Los temas y guiones permanecen en sus piezas.`
+          : result.changed ? 'Se alternaron piezas; no quedan días libres para mover publicaciones a otras fechas.'
+            : 'Este periodo no permite otra distribución con las mismas piezas.');
     } catch (error) {
       setCalendarMessage(error.message);
     }
@@ -758,7 +760,6 @@ function ProposalEditor({ id }) {
 
           <ArraySection
             title="Calendario editorial"
-            add={() => addArray('monthPlan', emptyPlan)}
             hint="Define las cantidades y el periodo. Genera el primer calendario aquí; después podrás mover fechas o editar cada pieza."
             options={<>
               <Input label="Título de la sección" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
@@ -797,36 +798,33 @@ function ProposalEditor({ id }) {
                 existingCount={(proposal.monthPlan || []).length}
               />
             </details>
-            {proposal.monthPlan.map((item, i) => (
-              <div className="array-card" key={i}>
-                <div className="array-head"><b>Pieza del calendario {i + 1}</b><button onClick={() => removeArray('monthPlan', i)}><Trash2 size={15} /></button></div>
-                <Input label="Fecha de publicación" type="date" value={item.date || ''} onChange={v => updateArray('monthPlan', i, 'date', v)} />
-                <Input label="Pieza (Reel 1, Post 1…)" value={item.piece} onChange={v => updateArray('monthPlan', i, 'piece', v)} />
-                <Input label="Tema" value={item.topic} onChange={v => updateArray('monthPlan', i, 'topic', v)} />
-                <details className="item-options">
-                  <summary>Detalles de esta pieza (opcional)</summary>
-                  <Input label="Tipo" value={item.type || ''} onChange={v => updateArray('monthPlan', i, 'type', v)} />
-                  <Input label="Categoría" value={item.pillar} onChange={v => updateArray('monthPlan', i, 'pillar', v)} />
-                  <Input label="Objetivo" value={item.objective} onChange={v => updateArray('monthPlan', i, 'objective', v)} />
-                </details>
-              </div>
-            ))}
           </ArraySection>
 
-          <EditorSection title="Guiones y estructuras" hint="Usa los videos del calendario. El título y la fecha son los mismos en ambas secciones; solo se mostrará al cliente una pieza cuando agregues su guion o secuencia visual.">
-            <Input label="Título visible de la sección" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />
+          <ArraySection
+            title="Piezas y guiones"
+            add={() => addArray('monthPlan', emptyPlan)}
+            hint="Edita fecha, número y tema en la misma ficha. Los videos incluyen su guion o secuencia visual; los posts solo necesitan tema."
+            options={<Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />}
+          >
             <div className="script-editor-list">
-              {videoPlanEntries(proposal.monthPlan).length === 0 && <p className="muted">Primero agrega al calendario una pieza llamada Reel o Video (también acepta UGC y Clip).</p>}
-              {videoPlanEntries(proposal.monthPlan).map(item => (
-                <article className="script-editor-card" key={item.index}>
-                  <div className="script-editor-head"><b>{item.piece || `Video ${item.index + 1}`}</b><span>{item.date || 'Sin fecha'}</span></div>
-                  <Input label="Título / tema" value={item.topic || ''} onChange={v => updateArray('monthPlan', item.index, 'topic', v)} />
-                  <SelectField label="Formato" value={item.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', item.index, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
-                  <Textarea label={item.scriptMode === 'visual' ? 'Secuencia visual y textos en pantalla' : 'Guion o estructura del video'} value={item.scriptText || ''} onChange={v => updateArray('monthPlan', item.index, 'scriptText', v)} rows={7} maxLength={8000} hint={item.scriptMode === 'visual' ? 'Describe los planos, acciones, textos y cierre.' : 'Puedes separar apertura, desarrollo y cierre en párrafos.'} />
+              {proposal.monthPlan.length === 0 && <p className="muted">Genera el calendario o agrega una pieza para comenzar.</p>}
+              {proposal.monthPlan.map((item, index) => (
+                <article className="script-editor-card" key={index}>
+                  <div className="script-editor-head">
+                    <b>{item.piece || `Pieza ${index + 1}`}</b>
+                    <button type="button" className="mini-trash" aria-label={`Quitar ${item.piece || `pieza ${index + 1}`}`} onClick={() => removeArray('monthPlan', index)}><Trash2 size={15} /></button>
+                  </div>
+                  <Input label="Fecha de publicación" type="date" value={item.date || ''} onChange={v => updateArray('monthPlan', index, 'date', v)} />
+                  <Input label="Pieza (Reel 1, Post 1…)" value={item.piece} onChange={v => updateArray('monthPlan', index, 'piece', v)} />
+                  <Input label="Título / tema" wide={!isVideoPiece(item)} value={item.topic || ''} onChange={v => updateArray('monthPlan', index, 'topic', v)} />
+                  {isVideoPiece(item) && <>
+                    <SelectField label="Formato del video" value={item.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', index, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
+                    <Textarea label={item.scriptMode === 'visual' ? 'Secuencia visual y textos en pantalla' : 'Guion o estructura del video'} value={item.scriptText || ''} onChange={v => updateArray('monthPlan', index, 'scriptText', v)} rows={7} maxLength={8000} hint={item.scriptMode === 'visual' ? 'Describe los planos, acciones, textos y cierre.' : 'Puedes separar apertura, desarrollo y cierre en párrafos.'} />
+                  </>}
                 </article>
               ))}
             </div>
-          </EditorSection>
+          </ArraySection>
 
           {proposal.proposalType === 'initial' && <>
             <EditorSection title="Siguiente movimiento">
@@ -868,7 +866,7 @@ function EditorSection({ title, children, hint }) {
 function ArraySection({ title, children, add, hint, options }) {
   return (
     <section className="editor-section">
-      <div className="section-row"><h2>{title}</h2><button className="btn btn-secondary small-btn" onClick={add}><Plus size={15} /> Agregar</button></div>
+      <div className="section-row"><h2>{title}</h2>{add && <button className="btn btn-secondary small-btn" onClick={add}><Plus size={15} /> Agregar</button>}</div>
       {hint && <p className="editor-hint">{hint}</p>}
       {options && <details className="item-options section-options"><summary>Cambiar título y opciones</summary><div className="field-grid">{options}</div></details>}
       <div className="array-stack">{children}</div>
@@ -1023,8 +1021,8 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
   );
 }
 
-function Input({ label, value, onChange, hint, type = 'text', min, max }) {
-  return <label className="field"><span>{label}</span><input type={type} min={min} max={max} value={value ?? ''} onChange={e => onChange(e.target.value)} />{hint && <small>{hint}</small>}</label>;
+function Input({ label, value, onChange, hint, type = 'text', min, max, wide = false }) {
+  return <label className={`field${wide ? ' wide' : ''}`}><span>{label}</span><input type={type} min={min} max={max} value={value ?? ''} onChange={e => onChange(e.target.value)} />{hint && <small>{hint}</small>}</label>;
 }
 
 function ColorField({ label, value, onChange }) {

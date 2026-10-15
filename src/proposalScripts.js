@@ -3,7 +3,10 @@ function pieceKey(value = '') {
 }
 
 export function isVideoPiece(item = {}) {
-  return /\b(reels?|videos?|ugc|clips?|promocional(?:es)?)\b/.test(pieceKey(`${item.type || ''} ${item.piece || ''}`));
+  const piece = pieceKey(item.piece);
+  if (/\b(reels?|videos?|ugc|clips?|promocional(?:es)?)\b/.test(piece)) return true;
+  if (/\b(posts?|carruseles?|fotos?|photos?|imagenes?|estaticos?)\b/.test(piece)) return false;
+  return /\b(reels?|videos?|ugc|clips?|promocional(?:es)?)\b/.test(pieceKey(item.type));
 }
 
 export function videoPlanEntries(plan = []) {

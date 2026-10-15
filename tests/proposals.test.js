@@ -4,7 +4,7 @@ import { createBlankProposal, createNextCycleProposal, defaultProposal, normaliz
 import { getEmbed } from '../src/mediaEmbed.js';
 import { resolveProposalPeriod } from '../src/proposalPeriod.js';
 import { validatePublication } from '../src/proposalValidation.js';
-import { preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from '../src/proposalScripts.js';
+import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from '../src/proposalScripts.js';
 import { buildProductionCalendarExport, generateProposalCalendar, rearrangeProposalCalendar } from '../src/proposalCalendar.js';
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
@@ -99,6 +99,40 @@ test('genera cantidades por tipo, alterna formatos y conserva títulos y guiones
   assert.equal(rearranged.items.find(item => item.piece === 'Reel 1').scriptText, 'Apertura\nCierre');
   assert.equal(rearranged.items.find(item => item.piece === 'Reel 1').topic, 'Dolor de rodilla');
   assert.ok(rearranged.items.some((item, index) => item.date !== written[index].date));
+});
+
+test('las variaciones separan reels con estáticos, ocupan nuevos días y mantienen cada guion', () => {
+  const proposal = {
+    id: 'variaciones', clientName: 'Mabel Limón', periodStart: '2026-10-09', periodEnd: '2026-11-12',
+    contentCounts: { reels: 7, posts: 6, photos: 0, ugc: 0, promocional: 0 }, monthPlan: []
+  };
+  const first = generateProposalCalendar(proposal).items.map(item => item.piece === 'Reel 1'
+    ? { ...item, topic: 'Tema elegido', scriptText: 'Guion escrito', scriptMode: 'visual' } : item);
+  const layouts = new Set();
+  const before = new Set(first.map(item => item.date));
+  for (let seed = 1; seed <= 12; seed++) {
+    const result = rearrangeProposalCalendar({ ...proposal, monthPlan: first }, seed);
+    assert.equal(result.items.length, 13);
+    assert.equal(new Set(result.items.map(item => item.date)).size, 13);
+    assert.deepEqual(result.items.map(item => isVideoPiece(item)), [true, false, true, false, true, false, true, false, true, false, true, false, true]);
+    assert.ok(result.changedDateCount >= 1);
+    assert.ok(result.items.some(item => !before.has(item.date)));
+    assert.ok(result.items.every(item => new Date(`${item.date}T12:00:00Z`).getUTCDay() !== 0));
+    assert.deepEqual(result.items.find(item => item.piece === 'Reel 1'), {
+      ...first.find(item => item.piece === 'Reel 1'), date: result.items.find(item => item.piece === 'Reel 1').date
+    });
+    layouts.add(result.items.map(item => item.date).join(','));
+  }
+  assert.ok(layouts.size >= 6, `Solo hubo ${layouts.size} distribuciones de fechas`);
+});
+
+test('al renombrar una pieza, su formato sigue el nombre visible', () => {
+  const proposal = {
+    id: 'renombrar', clientName: 'Dra. Ejemplo', periodStart: '2026-11-02', periodEnd: '2026-11-30',
+    monthPlan: [{ date: '2026-11-02', piece: 'Post 1', type: 'Reel', topic: 'Nuevo tema' }]
+  };
+  assert.equal(isVideoPiece(proposal.monthPlan[0]), false);
+  assert.equal(buildProductionCalendarExport(proposal).items[0].type, 'Post');
 });
 
 test('exporta un archivo independiente para Producción y rechaza fechas repetidas', () => {
