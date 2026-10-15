@@ -35,7 +35,8 @@ import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
-import { TYPOGRAPHY_PRESETS, typographyVariables, sectionTypographyVariables } from './proposalTypography';
+import { TYPOGRAPHY_PRESETS, typographyVariables } from './proposalTypography';
+import { visibleProposalReferences } from './proposalReferences';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
@@ -556,11 +557,8 @@ function ProposalEditor({ id }) {
     removeArray(name, index);
   }
 
-  function updateSectionTypography(section, value) {
-    setProposal(prev => ({
-      ...prev,
-      sectionTypography: { ...prev.sectionTypography, [section]: value }
-    }));
+  function updateTypographyPreset(value) {
+    setProposal(prev => ({ ...prev, typographyPreset: value, sectionTypography: {} }));
   }
 
   function planCalendar(action) {
@@ -629,11 +627,6 @@ function ProposalEditor({ id }) {
     expanded: openSection === key,
     onToggle: () => setOpenSection(current => current === key ? null : key)
   });
-  const typographyFor = key => <TypographySelect
-    value={proposal.sectionTypography?.[key] || 'inherit'}
-    onChange={value => updateSectionTypography(key, value)}
-    inherit
-  />;
   const activeReference = Math.min(selectedReference, proposal.references.length - 1);
   const activePillar = Math.min(selectedPillar, proposal.pillars.length - 1);
   const activeStep = Math.min(selectedStep, proposal.steps.length - 1);
@@ -677,7 +670,8 @@ function ProposalEditor({ id }) {
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
             <Input label="Etiqueta de portada" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Escribe «Ciclo 2 · noviembre» o el texto que quieras. No se agregan fechas automáticamente." />
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
-            <TypographySelect label="Tipografía general" value={proposal.typographyPreset || 'editorial'} onChange={v => updateField('typographyPreset', v)} />
+            <TypographySelect value={proposal.typographyPreset || 'editorial'} onChange={updateTypographyPreset} />
+            <p className="typography-help">Una fuente para todo, o una combinación para títulos y texto. Este ajuste cambia la propuesta completa.</p>
             {proposal.themePreset === 'custom' && (
               <>
                 <ColorField label="Color principal" value={proposal.customAccent || '#8b1628'} onChange={v => updateField('customAccent', v)} />
@@ -694,7 +688,6 @@ function ProposalEditor({ id }) {
             <details className="editor-extra">
               <summary>Más opciones de portada</summary>
               <div className="field-grid">
-                {typographyFor('cover')}
                 <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
                 <Input label="Nombre en portada, si es distinto" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
                 <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
@@ -707,7 +700,6 @@ function ProposalEditor({ id }) {
           <EditorSection title={proposal.proposalType === 'initial' ? 'Enfoque inicial' : 'Enfoque del mes'} {...accordion('strategy', proposal.strategyTitle || 'Sin enfoque')} hint="Esta sección aparece en la vista previa cuando escribes un título o una explicación.">
             <Input label="Título del enfoque" value={proposal.strategyTitle} onChange={v => updateField('strategyTitle', v)} />
             <Textarea label="Qué haremos y por qué" value={proposal.strategyText} onChange={v => updateField('strategyText', v)} />
-            {typographyFor('intro')}
             {proposal.proposalType === 'initial' && <>
               <Textarea label="Texto de Autoridad" value={proposal.diagnosisText} onChange={v => updateField('diagnosisText', v)} />
               <Textarea label="Texto de Confianza" value={proposal.audienceNeeds} onChange={v => updateField('audienceNeeds', v)} />
@@ -719,7 +711,6 @@ function ProposalEditor({ id }) {
             <EditorSection title="02 · Sistema de contenido" {...accordion('system', proposal.systemTitle || 'Sin título')}>
               <Input label="Título visible al cliente" value={proposal.systemTitle || ''} onChange={v => updateField('systemTitle', v)} />
               <Textarea label="Descripción" value={proposal.creativeApproach} onChange={v => updateField('creativeApproach', v)} />
-              {typographyFor('system')}
             </EditorSection>
 
             <ArraySection title="02 · Pilares de contenido" {...accordion('pillars', `${proposal.pillars.length} pilares`)} add={() => addSelected('pillars', emptyPillar, 'pillars', setSelectedPillar)}>
@@ -742,7 +733,6 @@ function ProposalEditor({ id }) {
             options={<>
               <Input label="Título de la sección" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
               <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
-              {typographyFor('visuals')}
             </>}
           >
             <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : ''} disabled={Boolean(activeUpload)} />
@@ -772,7 +762,7 @@ function ProposalEditor({ id }) {
             {...accordion('scope', `${proposal.deliverables.length} entregables`)}
             add={() => { setOpenSection('scope'); addArray('deliverables', emptyDeliverable); }}
             hint="Aparece en la vista previa cuando agregas un entregable."
-            options={<><Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />{typographyFor('scope')}</>}
+            options={<Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />}
           >
             {proposal.deliverables.map((item, i) => (
               <div className="two-col array-line" key={i}>
@@ -790,7 +780,6 @@ function ProposalEditor({ id }) {
             options={<>
               <Input label="Título de la sección" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
               <Textarea label="Introducción (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
-              {typographyFor('calendar')}
             </>}
           >
             <div className="calendar-planner-panel">
@@ -832,7 +821,7 @@ function ProposalEditor({ id }) {
             {...accordion('scripts', `${proposal.monthPlan.length} piezas · ${scriptCount} guiones escritos`)}
             add={() => { setPieceFilter('all'); addSelected('monthPlan', emptyPlan, 'scripts', setSelectedPiece); }}
             hint="Edita fecha, número y tema en la misma ficha. Los videos incluyen su guion o secuencia visual; los posts solo necesitan tema."
-            options={<><Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />{typographyFor('scripts')}</>}
+            options={<Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />}
           >
             <div className="script-editor-list">
               {proposal.monthPlan.length === 0 && <p className="muted">Genera el calendario o agrega una pieza para comenzar.</p>}
@@ -863,7 +852,6 @@ function ProposalEditor({ id }) {
           {proposal.proposalType === 'initial' && <>
             <EditorSection title="Siguiente movimiento" {...accordion('next', proposal.stepsTitle || 'Sin título')}>
               <Input label="Título visible al cliente" value={proposal.stepsTitle || ''} onChange={v => updateField('stepsTitle', v)} />
-              {typographyFor('steps')}
             </EditorSection>
             <ArraySection title="Pasos" {...accordion('steps', `${proposal.steps.length} pasos`)} add={() => addSelected('steps', emptyStep, 'steps', setSelectedStep)}>
               <CompactItemList items={proposal.steps} selectedIndex={activeStep} onSelect={setSelectedStep} labelFor={(item, i) => item.title || `Paso ${i + 1}`} metaFor={item => item.text} disabled={Boolean(activeUpload)} />
@@ -878,7 +866,6 @@ function ProposalEditor({ id }) {
           <EditorSection title="Cierre (opcional)" {...accordion('close', proposal.ctaTitle || 'Sin cierre')}>
             <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
             <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
-            {typographyFor('close')}
           </EditorSection>
         </section>
 
@@ -925,12 +912,12 @@ function ArraySection({ title, children, add, disableAdd = false, hint, options,
   );
 }
 
-function TypographySelect({ label = 'Tipografía de esta sección', value, onChange, inherit = false }) {
+function TypographySelect({ value, onChange }) {
   return <SelectField
-    label={label}
+    label="Tipografía de toda la propuesta"
     value={value}
     onChange={onChange}
-    options={[...(inherit ? [{ value: 'inherit', label: 'Usar tipografía general' }] : []), ...TYPOGRAPHY_PRESETS]}
+    options={TYPOGRAPHY_PRESETS}
   />;
 }
 
@@ -1222,7 +1209,7 @@ function ProposalPage({ proposal, compact = false }) {
   proposal = normalizeProposal(proposal);
   const period = resolveProposalPeriod(proposal);
   const isMonthly = proposal.proposalType === 'monthly';
-  const references = (proposal.references || []).filter(ref => ref?.url || ref?.title || ref?.note).slice(0, 3);
+  const references = visibleProposalReferences(proposal.references);
   const themeVars = getThemeVars(proposal.themePreset, proposal.customAccent, proposal.customAccentDark);
   const primaryDeliverables = (proposal.deliverables || []).filter(d => d?.label || d?.value).slice(0, 6);
   const primarySteps = (proposal.steps || [])
@@ -1262,7 +1249,7 @@ function ProposalPage({ proposal, compact = false }) {
 
   return (
     <div className={compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
-      <header className="luxe-hero" style={sectionTypographyVariables(proposal, 'cover')}>
+      <header className="luxe-hero">
         <div className="luxe-glow luxe-glow-one" />
         <div className="luxe-glow luxe-glow-two" />
         <div className="wrap luxe-nav">
@@ -1292,7 +1279,7 @@ function ProposalPage({ proposal, compact = false }) {
       </header>
 
       <main className="luxe-main">
-        {showIntro && <section className="luxe-section luxe-intro" style={sectionTypographyVariables(proposal, 'intro')}>
+        {showIntro && <section className="luxe-section luxe-intro">
           <div className="wrap luxe-intro-grid">
             <div>
               <div className="luxe-kicker">{String(introNumber).padStart(2, '0')} · {isMonthly ? 'Enfoque del ciclo' : 'En una frase'}</div>
@@ -1309,7 +1296,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showSystem && <section className="luxe-section luxe-system" style={sectionTypographyVariables(proposal, 'system')}>
+        {showSystem && <section className="luxe-section luxe-system">
           <div className="wrap">
             <div className="luxe-section-head">
               <div>
@@ -1331,7 +1318,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showVisuals && <section className="luxe-section luxe-visuals" style={sectionTypographyVariables(proposal, 'visuals')}>
+        {showVisuals && <section className="luxe-section luxe-visuals">
           <div className={`wrap luxe-visuals-head ${proposal.visualIntro ? '' : 'is-single'}`}>
             <div>
               <div className="luxe-kicker">{String(visualNumber).padStart(2, '0')} · Referencias visuales</div>
@@ -1339,7 +1326,7 @@ function ProposalPage({ proposal, compact = false }) {
             </div>
             {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
           </div>
-          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length }}>
+          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
             {references.map((ref, i) => (
               <article className="luxe-reference" key={i}>
                 <VideoMockup refItem={ref} label={ref.pillar || `Referencia ${i + 1}`} />
@@ -1353,7 +1340,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showScope && <section className="luxe-section luxe-scope" style={sectionTypographyVariables(proposal, 'scope')}>
+        {showScope && <section className="luxe-section luxe-scope">
           <div className="wrap">
             <div className="luxe-kicker">{String(scopeNumber).padStart(2, '0')} · Alcance</div>
             <h2>{proposal.deliverablesTitle || 'Alcance del ciclo'}</h2>
@@ -1363,7 +1350,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showScripts && <section className="luxe-section luxe-scripts-section" style={sectionTypographyVariables(proposal, 'scripts')}>
+        {showScripts && <section className="luxe-section luxe-scripts-section">
           <div className="wrap">
             <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · Guiones del ciclo</div>
             <h2>{proposal.scriptsTitle || 'Cada pieza, una idea clara.'}</h2>
@@ -1393,7 +1380,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showCalendar && <section className="luxe-section luxe-calendar-section" style={sectionTypographyVariables(proposal, 'calendar')}>
+        {showCalendar && <section className="luxe-section luxe-calendar-section">
           <div className="wrap">
             <div className={`luxe-calendar-head ${proposal.calendarIntro ? '' : 'is-single'}`}>
               <div>
@@ -1406,7 +1393,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only" style={sectionTypographyVariables(proposal, 'steps')}>
+        {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only">
           <div className="wrap luxe-steps-center">
             <div className="luxe-steps-card">
               <div className="luxe-kicker">{String(stepsNumber).padStart(2, '0')} · Arranque</div>
@@ -1425,7 +1412,7 @@ function ProposalPage({ proposal, compact = false }) {
         </section>}
       </main>
 
-      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close" style={sectionTypographyVariables(proposal, 'close')}>
+      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close">
         <div className="wrap">
           <span className="luxe-kicker">Cierre</span>
           {proposal.ctaTitle && <h2>{proposal.ctaTitle}</h2>}

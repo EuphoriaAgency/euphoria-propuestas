@@ -6,7 +6,8 @@ import { resolveProposalPeriod } from '../src/proposalPeriod.js';
 import { validatePublication } from '../src/proposalValidation.js';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from '../src/proposalScripts.js';
 import { buildProductionCalendarExport, generateProposalCalendar, rearrangeProposalCalendar } from '../src/proposalCalendar.js';
-import { typographyVariables, sectionTypographyVariables } from '../src/proposalTypography.js';
+import { TYPOGRAPHY_PRESETS, typographyVariables } from '../src/proposalTypography.js';
+import { visibleProposalReferences } from '../src/proposalReferences.js';
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
   const draft = createBlankProposal();
@@ -52,20 +53,29 @@ test('la propuesta publicada antes de introducir ciclos conserva sus títulos de
   assert.equal(restored.scriptsTitle, defaultProposal.scriptsTitle);
 });
 
-test('la tipografía anterior conserva el estilo editorial y cada sección puede usar un estilo propio', () => {
+test('un selector ofrece fuentes únicas y combinadas sin perder la configuración anterior', () => {
   const legacy = normalizeProposal({ clientName: 'Cliente anterior', sectionTypography: null });
   assert.equal(legacy.typographyPreset, 'editorial');
   assert.deepEqual(legacy.sectionTypography, {});
   const fonts = typographyVariables('clinical');
   assert.match(fonts['--proposal-heading-font'], /Manrope/);
-  assert.deepEqual(sectionTypographyVariables(legacy, 'intro'), {});
   const customized = { ...legacy, typographyPreset: 'gastronomy', sectionTypography: { intro: 'clinical', visuals: 'inherit' } };
-  assert.match(sectionTypographyVariables(customized, 'intro')['--proposal-heading-font'], /Manrope/);
-  assert.deepEqual(sectionTypographyVariables(customized, 'visuals'), {});
+  assert.equal(typographyVariables(customized.typographyPreset)['--proposal-body-font'], "'DM Sans', system-ui, sans-serif");
+  assert.ok(TYPOGRAPHY_PRESETS.length > 4);
+  for (const preset of TYPOGRAPHY_PRESETS.filter(item => item.value.startsWith('single-'))) {
+    const variables = typographyVariables(preset.value);
+    assert.equal(variables['--proposal-heading-font'], variables['--proposal-body-font']);
+  }
   assert.equal(typographyVariables('fuente-desconocida')['--proposal-heading-font'], typographyVariables('editorial')['--proposal-heading-font']);
   const nextCycle = createNextCycleProposal(customized);
   assert.equal(nextCycle.typographyPreset, 'gastronomy');
   assert.equal(nextCycle.sectionTypography.intro, 'clinical');
+});
+
+test('la vista del cliente conserva la cuarta referencia y las siguientes', () => {
+  const references = Array.from({ length: 5 }, (_, index) => ({ title: `Ejemplo ${index + 1}`, url: `https://example.com/${index + 1}` }));
+  assert.deepEqual(visibleProposalReferences([...references, { title: '  ', url: '' }]), references);
+  assert.equal(visibleProposalReferences(references)[3].title, 'Ejemplo 4');
 });
 
 test('el cliente ve solo guiones de video, ordenados por su fecha real del calendario', () => {
