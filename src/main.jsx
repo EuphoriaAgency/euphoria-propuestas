@@ -712,7 +712,7 @@ function ProposalEditor({ id }) {
           {message && <div className="save-message">{message}</div>}
           {storageCheck?.state === 'missing' && <div className="editor-storage-notice">
             <strong>Las cargas de archivos todavía no funcionan.</strong>
-            <p>{storageCheck.message} Puedes seguir con enlaces de YouTube, Vimeo o Dropbox.</p>
+            <p>{storageCheck.message} Pulsa «Volver a comprobar» después de activarlo.</p>
             <a href="https://console.firebase.google.com/project/propuestas-euphoria/storage" target="_blank" rel="noreferrer">Abrir Storage del proyecto</a>
             <button type="button" onClick={refreshStorageCheck}>Volver a comprobar</button>
           </div>}
@@ -888,7 +888,7 @@ function ProposalEditor({ id }) {
               <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
             </>}
           >
-            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => item.posterUrl || (getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : '')} disabled={Boolean(activeUpload)} />
+            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Visual agregado' : 'Sin visual'} imageFor={item => item.posterUrl || (getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : '')} disabled={Boolean(activeUpload)} />
             {activeReference >= 0 && <div className="compact-detail array-card">
                 <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
                 <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
@@ -901,10 +901,6 @@ function ProposalEditor({ id }) {
                   storageUnavailable={storageCheck?.state === 'missing'}
                   onUploaded={(url, posterUrl) => updateReferenceMedia(activeReference, url, posterUrl)}
                 />
-                <details className="item-options">
-                  <summary>Usar enlace externo (opcional)</summary>
-                  <Input label="Enlace de imagen o video" value={proposal.references[activeReference].url} onChange={v => updateReferenceMedia(activeReference, v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
-                </details>
                 {getEmbed(proposal.references[activeReference].url).type === 'video' && <div className="poster-editor">
                   <small>Vista previa del video en celular. Las subidas nuevas la crean automáticamente.</small>
                   <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug} uploadKey={`reference-poster-${activeReference}`}
@@ -1038,10 +1034,6 @@ function CoverMediaEditor({ proposal, onChange, onPosterChange, activeUpload, se
         storageUnavailable={storageUnavailable}
         onUploaded={(url, posterUrl) => onChange(visual.field, url, posterUrl)}
       />
-      <details className="item-options">
-        <summary>Usar enlace externo (opcional)</summary>
-        <Input label={`Enlace de ${visual.label.toLowerCase()}`} value={proposal[visual.field] || ''} onChange={v => onChange(visual.field, v)} hint="También puedes usar YouTube o Vimeo." />
-      </details>
       {getEmbed(proposal[visual.field]).type === 'video' && <div className="poster-editor">
         <small>Vista previa para celulares. Las subidas nuevas la crean automáticamente.</small>
         <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug}
@@ -1196,7 +1188,7 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
       <label className="media-upload-box">
         <UploadCloud size={16} />
         <strong>{uploading ? progress === 100 ? 'Finalizando…' : `Subiendo ${progress}%` : storageUnavailable ? 'Storage pendiente' : blocked ? 'Espera la otra subida' : 'Seleccionar archivo'}</strong>
-        <small>{storageUnavailable ? 'Activa Storage arriba o pega una URL en el campo anterior.' : imageOnly ? 'Imagen JPG, PNG o WebP hasta 20 MB.' : 'Un archivo a la vez · video hasta 500 MB. MP4 H.264/WebM se reproducen aquí; MOV se abre como archivo.'}</small>
+        <small>{storageUnavailable ? 'Revisa el aviso de Storage arriba antes de subir archivos.' : imageOnly ? 'Imagen JPG, PNG o WebP hasta 20 MB.' : 'Un archivo a la vez · video hasta 500 MB. MP4 H.264/WebM se reproducen aquí; MOV se abre como archivo.'}</small>
         <input type="file" accept={imageOnly ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov'} disabled={uploading || blocked || storageUnavailable} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
       </label>
       {uploading && <>
