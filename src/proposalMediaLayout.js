@@ -8,9 +8,9 @@ export function coverMediaLayout(proposal, references = []) {
     title
   });
   const slots = {
-    main: coverSlot('main', 'heroMediaUrl', 'heroMediaPosterUrl', references[0], 'Visual principal'),
-    left: coverSlot('left', 'heroMediaBackUrl', 'heroMediaBackPosterUrl', references[1], 'Visual izquierdo'),
-    right: coverSlot('right', 'heroMediaFrontUrl', 'heroMediaFrontPosterUrl', references[2], 'Visual derecho')
+    main: coverSlot('main', 'heroMediaUrl', 'heroMediaPosterUrl', references[0], 'Visual 1'),
+    left: coverSlot('left', 'heroMediaBackUrl', 'heroMediaBackPosterUrl', references[1], 'Visual 2'),
+    right: coverSlot('right', 'heroMediaFrontUrl', 'heroMediaFrontPosterUrl', references[2], 'Visual 3')
   };
   const available = [slots.main, slots.left, slots.right].filter(item => item.url);
   // Las piezas estáticas necesitan más anchura que un reel. La principal gana

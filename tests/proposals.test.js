@@ -12,18 +12,25 @@ import { visibleProposalReferences } from '../src/proposalReferences.js';
 import { coverMediaLayout, editorialReferences, editorialReferenceRows } from '../src/proposalMediaLayout.js';
 import { isReadableSlug, proposalSlugCandidates, publicProposalPath, slugify, suggestedProposalSlug } from '../src/proposalPublicLink.js';
 
-test('la URL pública usa cliente y mes sin dejar de aceptar el enlace antiguo', () => {
+test('la URL pública usa cliente y frase sin dejar de aceptar el enlace antiguo', () => {
   const proposal = {
     id: 'UX44DxBsaBVOvS8vPujO', clientName: 'Dr. Toyeiros',
-    heroEyebrow: 'Propuesta de contenido Octubre', periodStart: '2026-10-01', monthPlan: []
+    positioning: 'Contenido de octubre para nuevos pacientes', periodStart: '2026-10-01', monthPlan: []
   };
-  assert.equal(suggestedProposalSlug(proposal), 'dr-toyeiros-octubre');
-  assert.equal(Array.from(proposalSlugCandidates({ ...proposal, slug: 'nombre-interno-antiguo' }))[0], 'dr-toyeiros-octubre');
+  assert.equal(suggestedProposalSlug(proposal), 'dr-toyeiros-contenido-de-octubre-para-nuevos-pacientes');
+  assert.equal(suggestedProposalSlug({ ...proposal, positioning: '', heroEyebrow: 'Texto anterior' }), 'dr-toyeiros-octubre');
+  assert.equal(suggestedProposalSlug({ ...proposal, positioning: 'Este documento presenta el siguiente ciclo de contenido y produccion' }), 'dr-toyeiros-este-documento-presenta-el-siguiente-ciclo');
+  const longLink = suggestedProposalSlug({ ...proposal, clientName: 'Clinica de atencion medica especializada en salud integral', positioning: 'Propuesta editorial dedicada a pacientes de Hermosillo' });
+  assert.ok(longLink.length <= 80);
+  assert.equal(isReadableSlug(longLink), true);
+  assert.ok(!longLink.endsWith('hermosi'));
+  assert.equal(Array.from(proposalSlugCandidates({ ...proposal, slug: 'nombre-interno-antiguo' }))[0], 'dr-toyeiros-contenido-de-octubre-para-nuevos-pacientes');
   assert.deepEqual(Array.from(proposalSlugCandidates(proposal)).slice(0, 3), [
-    'dr-toyeiros-octubre', 'dr-toyeiros-octubre-2026', 'dr-toyeiros-octubre-2'
+    'dr-toyeiros-contenido-de-octubre-para-nuevos-pacientes', 'dr-toyeiros-contenido-de-octubre-para-nuevos-pacientes-2026', 'dr-toyeiros-contenido-de-octubre-para-nuevos-pacientes-2'
   ]);
   assert.equal(publicProposalPath(proposal), '/p/UX44DxBsaBVOvS8vPujO');
   assert.equal(publicProposalPath({ ...proposal, slug: 'dr-toyeiros-octubre', publicLinkReady: true }), '/dr-toyeiros-octubre');
+  assert.equal(Array.from(proposalSlugCandidates({ ...proposal, slug: 'dr-toyeiros-octubre', publicLinkReady: true }))[0], 'dr-toyeiros-octubre');
   assert.equal(slugify('Dra. Muñoz · Salud'), 'dra-munoz-salud');
   assert.equal(isReadableSlug('admin'), false);
   assert.equal(isReadableSlug('dr-toyeiros-octubre'), true);
