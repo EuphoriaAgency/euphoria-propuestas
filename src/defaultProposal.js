@@ -1,3 +1,5 @@
+import { countProposalPieces } from './proposalCalendar.js';
+
 export const defaultProposal = {
   status: 'draft',
   proposalType: 'initial',
@@ -30,6 +32,7 @@ export const defaultProposal = {
   systemTitle: 'Menos piezas sueltas. Más intención.',
   visualTitle: 'La propuesta se entiende viendo.',
   visualIntro: 'Las referencias viven dentro de la propuesta para que el cliente visualice ritmo, encuadre, tono y estilo sin abrir links aparte.',
+  scriptsTitle: 'Cada pieza, una idea clara.',
   calendarTitle: 'Así se verá la ejecución.',
   calendarIntro: 'El contenido no solo se produce: se organiza con ritmo, intención comercial y consistencia mensual.',
   deliverablesTitle: 'Alcance de este ciclo',
@@ -88,6 +91,7 @@ export const defaultProposal = {
     { date: '2026-06-12', piece: 'Foto 1', pillar: 'Branding', topic: 'Retrato profesional en consultorio', objective: 'Construir confianza visual' },
     { date: '2026-06-17', piece: 'Post 1', pillar: 'Educativo', topic: 'Mitos del ácido hialurónico', objective: 'Aumentar autoridad' }
   ],
+  contentCounts: { reels: 2, posts: 1, photos: 1, ugc: 0, promocional: 0 },
   steps: [
     { title: 'Aprobación de estrategia', text: 'Validamos pilares, tono y objetivos de los primeros 30 días.' },
     { title: 'Sesión de producción', text: 'Agendamos el día de grabación en estudio o consultorio.' },
@@ -133,6 +137,7 @@ export function createBlankProposal() {
     systemTitle: '',
     visualTitle: 'Referencias del ciclo',
     visualIntro: '',
+    scriptsTitle: 'Cada pieza, una idea clara.',
     calendarTitle: 'Calendario del ciclo',
     calendarIntro: '',
     deliverablesTitle: 'Alcance del ciclo',
@@ -141,6 +146,7 @@ export function createBlankProposal() {
     references: [],
     deliverables: [],
     monthPlan: [],
+    contentCounts: { reels: 0, posts: 0, photos: 0, ugc: 0, promocional: 0 },
     steps: [],
     ctaTitle: '',
     ctaText: ''
@@ -168,6 +174,8 @@ export function normalizeProposal(data = {}) {
     references: Array.isArray(data.references) ? data.references : empty.references,
     deliverables: Array.isArray(data.deliverables) ? data.deliverables : empty.deliverables,
     monthPlan: Array.isArray(data.monthPlan) ? data.monthPlan : empty.monthPlan,
+    contentCounts: data.contentCounts && typeof data.contentCounts === 'object' ? { ...empty.contentCounts, ...data.contentCounts }
+      : countProposalPieces(Array.isArray(data.monthPlan) ? data.monthPlan : []),
     steps: Array.isArray(data.steps) ? data.steps : empty.steps
   };
 }
@@ -199,12 +207,14 @@ export function createNextCycleProposal(proposal) {
     steps: [],
     visualTitle: 'Referencias del ciclo',
     visualIntro: '',
+    scriptsTitle: 'Cada pieza, una idea clara.',
     calendarTitle: 'Calendario del ciclo',
     calendarIntro: '',
     deliverablesTitle: 'Alcance del ciclo',
     ctaTitle: '',
     ctaText: '',
     monthPlan: [],
+    contentCounts: { reels: 0, posts: 0, photos: 0, ugc: 0, promocional: 0 },
     status: 'draft'
   };
   delete copy.id;

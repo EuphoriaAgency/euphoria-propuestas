@@ -588,3 +588,55 @@ body{background:var(--paper);color:var(--ink)}
   .luxe-phone-back{transform:translate(-88px,20px) rotate(-13deg) scale(.85)}
   .luxe-phone-front{transform:translate(88px,26px) rotate(12deg) scale(.84)}
 }
+
+/* Guiones por pieza: índice editorial que abre solo el texto seleccionado. */
+.calendar-planner-panel{display:grid;gap:16px;background:#f6efe5;border:1px solid var(--line);border-radius:16px;padding:18px;margin:18px 0}
+.calendar-planner-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.calendar-planner-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.calendar-planner-actions{display:flex;flex-wrap:wrap;gap:9px}
+.calendar-planner-actions .btn{width:auto}
+.calendar-planner-message{font-size:13px;font-weight:750;color:var(--ink);line-height:1.45}
+.calendar-planner-panel .muted{font-size:12px;margin:0}
+.script-editor-list{grid-column:1/-1;display:grid;gap:12px}
+.script-editor-card{display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fbf6ef;border:1px solid var(--line);border-radius:14px;padding:16px}
+.script-editor-card>.field.wide,.script-editor-head{grid-column:1/-1}
+.script-editor-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--ink)}
+.script-editor-head span{font-size:12px;color:var(--ink-soft)}
+.script-editor-card textarea{min-height:165px;line-height:1.55}
+.luxe-scripts-section{background:var(--lux-paper)}
+.luxe-script-list{border-top:1px solid var(--lux-line);margin-top:54px}
+.luxe-script-item{border-bottom:1px solid var(--lux-line)}
+.luxe-script-item summary{list-style:none;display:grid;grid-template-columns:46px minmax(0,1fr) 165px 24px;align-items:center;gap:20px;padding:25px 5px;cursor:pointer}
+.luxe-script-item summary::-webkit-details-marker{display:none}
+.luxe-script-item summary:focus-visible{outline:2px solid var(--lux-red);outline-offset:3px}
+.luxe-script-number{font-size:14px;color:#817870;letter-spacing:.13em;font-weight:800}
+.luxe-script-copy{min-width:0;display:grid;gap:6px}
+.luxe-script-piece,.luxe-script-body>span{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--lux-red);font-weight:900}
+.luxe-script-copy strong{font-family:'Fraunces',serif;font-size:clamp(24px,2.7vw,38px);line-height:1.08;letter-spacing:-.04em;font-weight:600;overflow-wrap:anywhere}
+.luxe-script-preview{font-size:14px;line-height:1.4;color:#746c65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.luxe-script-side{display:grid;justify-items:start;gap:9px}
+.luxe-script-mode{font-size:10px;letter-spacing:.13em;text-transform:uppercase;font-weight:850;border:1px solid var(--lux-line);border-radius:999px;padding:6px 10px}
+.luxe-script-date{font-size:12px;color:#756c65;line-height:1.3}
+.luxe-script-toggle{font-size:25px;line-height:1;color:var(--lux-red);transition:transform .15s ease}
+.luxe-script-item[open] .luxe-script-toggle{transform:rotate(45deg)}
+.luxe-script-body{margin:0 5px 25px 66px;padding:24px 28px;border:1px solid var(--lux-line);border-radius:18px;background:var(--lux-paper-2)}
+.luxe-script-body p{white-space:pre-wrap;overflow-wrap:anywhere;max-width:75ch;font-size:16px;line-height:1.65;color:#292522;margin-top:14px}
+.compact-preview .luxe-script-list{margin-top:30px}
+.compact-preview .luxe-script-item summary{grid-template-columns:34px minmax(0,1fr) 105px 18px;gap:10px;padding:18px 2px}
+.compact-preview .luxe-script-copy strong{font-size:25px}
+.compact-preview .luxe-script-preview{font-size:12px}
+.compact-preview .luxe-script-body{margin-left:44px}
+@media(max-width:700px){
+  .calendar-planner-range{grid-template-columns:1fr}
+  .calendar-planner-counts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .calendar-planner-actions .btn{width:100%}
+  .script-editor-card{grid-template-columns:1fr}
+  .luxe-script-list{margin-top:34px}
+  .luxe-script-item summary,.compact-preview .luxe-script-item summary{grid-template-columns:34px minmax(0,1fr) 22px;gap:10px;padding:20px 0}
+  .luxe-script-side{grid-column:2;grid-row:2;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+  .luxe-script-toggle{grid-column:3;grid-row:1}
+  .luxe-script-copy strong,.compact-preview .luxe-script-copy strong{font-size:25px}
+  .luxe-script-preview{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .luxe-script-body,.compact-preview .luxe-script-body{margin:0 0 20px;padding:19px}
+  .luxe-script-body p{font-size:15px}
+}
