@@ -6,6 +6,7 @@ import { resolveProposalPeriod } from '../src/proposalPeriod.js';
 import { validatePublication } from '../src/proposalValidation.js';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from '../src/proposalScripts.js';
 import { buildProductionCalendarExport, generateProposalCalendar, rearrangeProposalCalendar } from '../src/proposalCalendar.js';
+import { typographyVariables, sectionTypographyVariables } from '../src/proposalTypography.js';
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
   const draft = createBlankProposal();
@@ -49,6 +50,22 @@ test('la propuesta publicada antes de introducir ciclos conserva sus títulos de
   assert.equal(restored.visualTitle, defaultProposal.visualTitle);
   assert.equal(restored.calendarTitle, defaultProposal.calendarTitle);
   assert.equal(restored.scriptsTitle, defaultProposal.scriptsTitle);
+});
+
+test('la tipografía anterior conserva el estilo editorial y cada sección puede usar un estilo propio', () => {
+  const legacy = normalizeProposal({ clientName: 'Cliente anterior', sectionTypography: null });
+  assert.equal(legacy.typographyPreset, 'editorial');
+  assert.deepEqual(legacy.sectionTypography, {});
+  const fonts = typographyVariables('clinical');
+  assert.match(fonts['--proposal-heading-font'], /Manrope/);
+  assert.deepEqual(sectionTypographyVariables(legacy, 'intro'), {});
+  const customized = { ...legacy, typographyPreset: 'gastronomy', sectionTypography: { intro: 'clinical', visuals: 'inherit' } };
+  assert.match(sectionTypographyVariables(customized, 'intro')['--proposal-heading-font'], /Manrope/);
+  assert.deepEqual(sectionTypographyVariables(customized, 'visuals'), {});
+  assert.equal(typographyVariables('fuente-desconocida')['--proposal-heading-font'], typographyVariables('editorial')['--proposal-heading-font']);
+  const nextCycle = createNextCycleProposal(customized);
+  assert.equal(nextCycle.typographyPreset, 'gastronomy');
+  assert.equal(nextCycle.sectionTypography.intro, 'clinical');
 });
 
 test('el cliente ve solo guiones de video, ordenados por su fecha real del calendario', () => {

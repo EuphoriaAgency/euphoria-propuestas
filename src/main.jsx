@@ -7,6 +7,9 @@ import {
   ExternalLink,
   Eye,
   FilePlus2,
+  ChevronDown,
+  Film,
+  Image as ImageIcon,
   Loader2,
   LogOut,
   Plus,
@@ -32,6 +35,7 @@ import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
+import { TYPOGRAPHY_PRESETS, typographyVariables, sectionTypographyVariables } from './proposalTypography';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
@@ -481,9 +485,9 @@ function Dashboard() {
 function AdminHeader() {
   return (
     <header className="admin-header">
-      <a className="brand-mark small" href="/admin">Euphoria<span>.</span></a>
+      <a className="admin-brand" href="/admin"><strong>EUPHORIA<span>.</span></strong><small>PROPUESTAS</small></a>
       <div className="row gap">
-        <a className="plain-link" href="/" target="_blank">Inicio</a>
+        <a className="plain-link" href="/admin">Panel</a>
         {firebaseReady && <button className="plain-link" onClick={() => signOut(auth)}><LogOut size={15} /> Salir</button>}
       </div>
     </header>
@@ -498,6 +502,12 @@ function ProposalEditor({ id }) {
   const [activeUpload, setActiveUpload] = useState(null);
   const [storageCheck, setStorageCheck] = useState(null);
   const [calendarMessage, setCalendarMessage] = useState('');
+  const [openSection, setOpenSection] = useState('cover');
+  const [selectedReference, setSelectedReference] = useState(0);
+  const [selectedPillar, setSelectedPillar] = useState(0);
+  const [selectedStep, setSelectedStep] = useState(0);
+  const [selectedPiece, setSelectedPiece] = useState(0);
+  const [pieceFilter, setPieceFilter] = useState('all');
 
   useEffect(() => {
     getProposalById(id).then((data) => {
@@ -533,6 +543,24 @@ function ProposalEditor({ id }) {
 
   function removeArray(name, index) {
     setProposal(prev => ({ ...prev, [name]: prev[name].filter((_, i) => i !== index) }));
+  }
+
+  function addSelected(name, item, section, select) {
+    select(proposal[name].length);
+    setOpenSection(section);
+    addArray(name, { ...item });
+  }
+
+  function removeSelected(name, index, select) {
+    select(Math.max(0, Math.min(index, proposal[name].length - 2)));
+    removeArray(name, index);
+  }
+
+  function updateSectionTypography(section, value) {
+    setProposal(prev => ({
+      ...prev,
+      sectionTypography: { ...prev.sectionTypography, [section]: value }
+    }));
   }
 
   function planCalendar(action) {
@@ -596,6 +624,28 @@ function ProposalEditor({ id }) {
   if (loadError) return <div className="not-found"><h1>{loadError}</h1><a href="/admin">Volver al panel</a></div>;
   if (!proposal) return <LoadingScreen label="Abriendo editor" />;
 
+  const accordion = (key, summary) => ({
+    summary,
+    expanded: openSection === key,
+    onToggle: () => setOpenSection(current => current === key ? null : key)
+  });
+  const typographyFor = key => <TypographySelect
+    value={proposal.sectionTypography?.[key] || 'inherit'}
+    onChange={value => updateSectionTypography(key, value)}
+    inherit
+  />;
+  const activeReference = Math.min(selectedReference, proposal.references.length - 1);
+  const activePillar = Math.min(selectedPillar, proposal.pillars.length - 1);
+  const activeStep = Math.min(selectedStep, proposal.steps.length - 1);
+  const pieceEntries = proposal.monthPlan.map((item, index) => ({ item, index }))
+    .filter(({ item }) => pieceFilter === 'all' || (pieceFilter === 'video' ? isVideoPiece(item) : !isVideoPiece(item)));
+  const activePiece = pieceEntries.find(({ index }) => index === selectedPiece)?.index ?? pieceEntries[0]?.index ?? -1;
+  const selectedPlanItem = activePiece >= 0 ? proposal.monthPlan[activePiece] : null;
+  const videoCount = proposal.monthPlan.filter(isVideoPiece).length;
+  const scriptCount = proposal.monthPlan.filter(item => isVideoPiece(item) && item.scriptText?.trim()).length;
+  const coverVisualCount = [proposal.heroMediaUrl, proposal.heroMediaBackUrl, proposal.heroMediaFrontUrl].filter(Boolean).length;
+  const dateSummary = proposal.periodStart && proposal.periodEnd ? `${proposal.periodStart} – ${proposal.periodEnd}` : 'Sin fechas';
+
   return (
     <div className="admin-shell">
       <AdminHeader />
@@ -618,74 +668,46 @@ function ProposalEditor({ id }) {
             <button type="button" onClick={refreshStorageCheck}>Volver a comprobar</button>
           </div>}
 
-          <EditorSection title="Portada y estilo">
+          <div className="editor-context">
+            <span>PROPUESTA · PANEL INTERNO</span>
+            <h1>{proposal.clientName || 'Nueva propuesta'}</h1>
+          </div>
+
+          <EditorSection title="Portada y estilo" {...accordion('cover', `${proposal.clientName || 'Sin cliente'} · ${proposal.heroEyebrow || 'Sin etiqueta'} · ${coverVisualCount} visuales`)}>
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
             <Input label="Etiqueta de portada" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Escribe «Ciclo 2 · noviembre» o el texto que quieras. No se agregan fechas automáticamente." />
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
+            <TypographySelect label="Tipografía general" value={proposal.typographyPreset || 'editorial'} onChange={v => updateField('typographyPreset', v)} />
             {proposal.themePreset === 'custom' && (
               <>
                 <ColorField label="Color principal" value={proposal.customAccent || '#8b1628'} onChange={v => updateField('customAccent', v)} />
                 <ColorField label="Color oscuro" value={proposal.customAccentDark || proposal.customAccent || '#5f1421'} onChange={v => updateField('customAccentDark', v)} />
               </>
             )}
-            <div className="hero-media-admin-grid single">
-              <div className="hero-media-admin-card featured">
-                <h4>Visual principal de portada (opcional)</h4>
-                <Input label="URL de imagen/video" value={proposal.heroMediaUrl || ''} onChange={v => updateField('heroMediaUrl', v)} hint="También puedes pegar un enlace de YouTube o Vimeo." />
-                <MediaUploader
-                  label="Subir visual principal"
-                  proposalId={proposal.id || proposal.slug}
-                  uploadKey="cover-main"
-                  activeUpload={activeUpload}
-                  setActiveUpload={setActiveUpload}
-                  storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateField('heroMediaUrl', url)}
-                />
-              </div>
-            </div>
+            <CoverMediaEditor
+              proposal={proposal}
+              onChange={updateField}
+              activeUpload={activeUpload}
+              setActiveUpload={setActiveUpload}
+              storageUnavailable={storageCheck?.state === 'missing'}
+            />
             <details className="editor-extra">
               <summary>Más opciones de portada</summary>
               <div className="field-grid">
+                {typographyFor('cover')}
                 <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
                 <Input label="Nombre en portada, si es distinto" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
                 <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
                 <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
                 <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
               </div>
-              <div className="hero-media-admin-grid side">
-                <div className="hero-media-admin-card">
-                <h4>Visual izquierdo (opcional)</h4>
-                <Input label="URL de imagen/video" value={proposal.heroMediaBackUrl || ''} onChange={v => updateField('heroMediaBackUrl', v)} hint="Se muestra atrás/izquierda. Si lo dejas vacío, usa la referencia visual 2." />
-                <MediaUploader
-                  label="Subir visual izquierdo"
-                  proposalId={proposal.id || proposal.slug}
-                  uploadKey="cover-left"
-                  activeUpload={activeUpload}
-                  setActiveUpload={setActiveUpload}
-                  storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateField('heroMediaBackUrl', url)}
-                />
-              </div>
-              <div className="hero-media-admin-card">
-                <h4>Visual derecho (opcional)</h4>
-                <Input label="URL de imagen/video" value={proposal.heroMediaFrontUrl || ''} onChange={v => updateField('heroMediaFrontUrl', v)} hint="Se muestra atrás/derecha. Si lo dejas vacío, usa la referencia visual 3." />
-                <MediaUploader
-                  label="Subir visual derecho"
-                  proposalId={proposal.id || proposal.slug}
-                  uploadKey="cover-right"
-                  activeUpload={activeUpload}
-                  setActiveUpload={setActiveUpload}
-                  storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateField('heroMediaFrontUrl', url)}
-                />
-              </div>
-            </div>
             </details>
           </EditorSection>
 
-          <EditorSection title={proposal.proposalType === 'initial' ? 'Enfoque inicial' : 'Enfoque del mes'} hint="Esta sección aparece en la vista previa cuando escribes un título o una explicación.">
+          <EditorSection title={proposal.proposalType === 'initial' ? 'Enfoque inicial' : 'Enfoque del mes'} {...accordion('strategy', proposal.strategyTitle || 'Sin enfoque')} hint="Esta sección aparece en la vista previa cuando escribes un título o una explicación.">
             <Input label="Título del enfoque" value={proposal.strategyTitle} onChange={v => updateField('strategyTitle', v)} />
             <Textarea label="Qué haremos y por qué" value={proposal.strategyText} onChange={v => updateField('strategyText', v)} />
+            {typographyFor('intro')}
             {proposal.proposalType === 'initial' && <>
               <Textarea label="Texto de Autoridad" value={proposal.diagnosisText} onChange={v => updateField('diagnosisText', v)} />
               <Textarea label="Texto de Confianza" value={proposal.audienceNeeds} onChange={v => updateField('audienceNeeds', v)} />
@@ -694,60 +716,63 @@ function ProposalEditor({ id }) {
           </EditorSection>
 
           {proposal.proposalType === 'initial' && <>
-            <EditorSection title="02 · Sistema de contenido">
+            <EditorSection title="02 · Sistema de contenido" {...accordion('system', proposal.systemTitle || 'Sin título')}>
               <Input label="Título visible al cliente" value={proposal.systemTitle || ''} onChange={v => updateField('systemTitle', v)} />
               <Textarea label="Descripción" value={proposal.creativeApproach} onChange={v => updateField('creativeApproach', v)} />
+              {typographyFor('system')}
             </EditorSection>
 
-            <ArraySection title="02 · Pilares de contenido" items={proposal.pillars} add={() => addArray('pillars', emptyPillar)}>
-            {proposal.pillars.map((item, i) => (
-              <div className="array-card" key={i}>
-                <div className="array-head"><b>Pilar {i + 1}</b><button onClick={() => removeArray('pillars', i)}><Trash2 size={15} /></button></div>
-                <Input label="Etiqueta" value={item.label} onChange={v => updateArray('pillars', i, 'label', v)} />
-                <Input label="Título" value={item.title} onChange={v => updateArray('pillars', i, 'title', v)} />
-                <Textarea label="Descripción" value={item.text} onChange={v => updateArray('pillars', i, 'text', v)} />
-              </div>
-            ))}
+            <ArraySection title="02 · Pilares de contenido" {...accordion('pillars', `${proposal.pillars.length} pilares`)} add={() => addSelected('pillars', emptyPillar, 'pillars', setSelectedPillar)}>
+              <CompactItemList items={proposal.pillars} selectedIndex={activePillar} onSelect={setSelectedPillar} labelFor={(item, i) => item.title || `Pilar ${i + 1}`} metaFor={item => item.label} disabled={Boolean(activeUpload)} />
+              {activePillar >= 0 && <div className="compact-detail array-card">
+                <div className="array-head"><b>Pilar {activePillar + 1}</b><button type="button" aria-label="Eliminar pilar" onClick={() => removeSelected('pillars', activePillar, setSelectedPillar)}><Trash2 size={15} /></button></div>
+                <Input label="Etiqueta" value={proposal.pillars[activePillar].label} onChange={v => updateArray('pillars', activePillar, 'label', v)} />
+                <Input label="Título" value={proposal.pillars[activePillar].title} onChange={v => updateArray('pillars', activePillar, 'title', v)} />
+                <Textarea label="Descripción" value={proposal.pillars[activePillar].text} onChange={v => updateArray('pillars', activePillar, 'text', v)} />
+              </div>}
             </ArraySection>
           </>}
 
           <ArraySection
             title="Referencias (opcional)"
-            add={() => addArray('references', emptyReference)}
+            {...accordion('references', `${proposal.references.length} referencias`)}
+            add={() => addSelected('references', emptyReference, 'references', setSelectedReference)}
+            disableAdd={Boolean(activeUpload)}
             hint="Aparecen en la vista previa cuando agregas una referencia con título o enlace."
             options={<>
               <Input label="Título de la sección" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
               <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
+              {typographyFor('visuals')}
             </>}
           >
-            {proposal.references.map((item, i) => (
-              <div className="array-card" key={i}>
-                <div className="array-head"><b>Referencia {i + 1}</b><button onClick={() => removeArray('references', i)}><Trash2 size={15} /></button></div>
-                <Input label="Título" value={item.title} onChange={v => updateArray('references', i, 'title', v)} />
-                <Input label="URL de imagen/video" value={item.url} onChange={v => updateArray('references', i, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
+            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : ''} disabled={Boolean(activeUpload)} />
+            {activeReference >= 0 && <div className="compact-detail array-card">
+                <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
+                <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
+                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateArray('references', activeReference, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
                 <MediaUploader
                   label="Subir imagen/video de referencia"
                   proposalId={proposal.id || proposal.slug}
-                  uploadKey={`reference-${i}`}
+                  uploadKey={`reference-${activeReference}`}
                   activeUpload={activeUpload}
                   setActiveUpload={setActiveUpload}
                   storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateArray('references', i, 'url', url)}
+                  onUploaded={url => updateArray('references', activeReference, 'url', url)}
                 />
                 <details className="item-options">
                   <summary>Contexto de la referencia (opcional)</summary>
-                  <Input label="Categoría" value={item.pillar} onChange={v => updateArray('references', i, 'pillar', v)} />
-                  <Textarea label="Qué nos gusta" value={item.note} onChange={v => updateArray('references', i, 'note', v)} />
+                  <Input label="Categoría" value={proposal.references[activeReference].pillar} onChange={v => updateArray('references', activeReference, 'pillar', v)} />
+                  <Textarea label="Qué nos gusta" value={proposal.references[activeReference].note} onChange={v => updateArray('references', activeReference, 'note', v)} />
                 </details>
-              </div>
-            ))}
+              </div>}
           </ArraySection>
 
           <ArraySection
             title="Qué incluye"
-            add={() => addArray('deliverables', emptyDeliverable)}
+            {...accordion('scope', `${proposal.deliverables.length} entregables`)}
+            add={() => { setOpenSection('scope'); addArray('deliverables', emptyDeliverable); }}
             hint="Aparece en la vista previa cuando agregas un entregable."
-            options={<Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />}
+            options={<><Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />{typographyFor('scope')}</>}
           >
             {proposal.deliverables.map((item, i) => (
               <div className="two-col array-line" key={i}>
@@ -760,10 +785,12 @@ function ProposalEditor({ id }) {
 
           <ArraySection
             title="Calendario editorial"
+            {...accordion('calendar', `${dateSummary} · ${proposal.monthPlan.length} piezas`)}
             hint="Define las cantidades y el periodo. Genera el primer calendario aquí; después podrás mover fechas o editar cada pieza."
             options={<>
               <Input label="Título de la sección" value={proposal.calendarTitle || ''} onChange={v => updateField('calendarTitle', v)} />
               <Textarea label="Introducción (opcional)" value={proposal.calendarIntro || ''} onChange={v => updateField('calendarIntro', v)} />
+              {typographyFor('calendar')}
             </>}
           >
             <div className="calendar-planner-panel">
@@ -802,52 +829,57 @@ function ProposalEditor({ id }) {
 
           <ArraySection
             title="Piezas y guiones"
-            add={() => addArray('monthPlan', emptyPlan)}
+            {...accordion('scripts', `${proposal.monthPlan.length} piezas · ${scriptCount} guiones escritos`)}
+            add={() => { setPieceFilter('all'); addSelected('monthPlan', emptyPlan, 'scripts', setSelectedPiece); }}
             hint="Edita fecha, número y tema en la misma ficha. Los videos incluyen su guion o secuencia visual; los posts solo necesitan tema."
-            options={<Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />}
+            options={<><Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />{typographyFor('scripts')}</>}
           >
             <div className="script-editor-list">
               {proposal.monthPlan.length === 0 && <p className="muted">Genera el calendario o agrega una pieza para comenzar.</p>}
-              {proposal.monthPlan.map((item, index) => (
-                <article className="script-editor-card" key={index}>
+              {proposal.monthPlan.length > 0 && pieceEntries.length === 0 && <p className="muted">No hay piezas de este tipo.</p>}
+              {proposal.monthPlan.length > 0 && <div className="compact-filter-row" role="group" aria-label="Filtrar piezas">
+                {[['all', 'Todas', proposal.monthPlan.length], ['video', 'Videos', videoCount], ['static', 'Estáticos', proposal.monthPlan.length - videoCount]].map(([key, label, count]) =>
+                  <button type="button" key={key} className={pieceFilter === key ? 'is-active' : ''} onClick={() => setPieceFilter(key)}>{label} <span>{count}</span></button>
+                )}
+              </div>}
+              <CompactItemList items={pieceEntries} selectedIndex={activePiece} onSelect={setSelectedPiece} getIndex={entry => entry.index} labelFor={({ item }, i) => item.piece || `Pieza ${pieceEntries[i].index + 1}`} metaFor={({ item }) => `${item.date || 'Sin fecha'} · ${item.topic || 'Sin tema'}${isVideoPiece(item) ? item.scriptText?.trim() ? ' · Guion listo' : ' · Guion pendiente' : ''}`} disabled={Boolean(activeUpload)} />
+              {selectedPlanItem && <article className="script-editor-card compact-detail" key={activePiece}>
                   <div className="script-editor-head">
-                    <b>{item.piece || `Pieza ${index + 1}`}</b>
-                    <button type="button" className="mini-trash" aria-label={`Quitar ${item.piece || `pieza ${index + 1}`}`} onClick={() => removeArray('monthPlan', index)}><Trash2 size={15} /></button>
+                    <b>{selectedPlanItem.piece || `Pieza ${activePiece + 1}`}</b>
+                    <button type="button" className="mini-trash" aria-label={`Quitar ${selectedPlanItem.piece || `pieza ${activePiece + 1}`}`} onClick={() => removeSelected('monthPlan', activePiece, setSelectedPiece)}><Trash2 size={15} /></button>
                   </div>
-                  <Input label="Fecha de publicación" type="date" value={item.date || ''} onChange={v => updateArray('monthPlan', index, 'date', v)} />
-                  <Input label="Pieza (Reel 1, Post 1…)" value={item.piece} onChange={v => updateArray('monthPlan', index, 'piece', v)} />
-                  <Input label="Título / tema" wide={!isVideoPiece(item)} value={item.topic || ''} onChange={v => updateArray('monthPlan', index, 'topic', v)} />
-                  {isVideoPiece(item) && <>
-                    <SelectField label="Formato del video" value={item.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', index, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
-                    <Textarea label={item.scriptMode === 'visual' ? 'Secuencia visual y textos en pantalla' : 'Guion o estructura del video'} value={item.scriptText || ''} onChange={v => updateArray('monthPlan', index, 'scriptText', v)} rows={7} maxLength={8000} hint={item.scriptMode === 'visual' ? 'Describe los planos, acciones, textos y cierre.' : 'Puedes separar apertura, desarrollo y cierre en párrafos.'} />
+                  <Input label="Fecha de publicación" type="date" value={selectedPlanItem.date || ''} onChange={v => updateArray('monthPlan', activePiece, 'date', v)} />
+                  <Input label="Pieza (Reel 1, Post 1…)" value={selectedPlanItem.piece} onChange={v => { setPieceFilter('all'); updateArray('monthPlan', activePiece, 'piece', v); }} />
+                  <Input label="Título / tema" wide={!isVideoPiece(selectedPlanItem)} value={selectedPlanItem.topic || ''} onChange={v => updateArray('monthPlan', activePiece, 'topic', v)} />
+                  {isVideoPiece(selectedPlanItem) && <>
+                    <SelectField label="Formato del video" value={selectedPlanItem.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', activePiece, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
+                    <Textarea label={selectedPlanItem.scriptMode === 'visual' ? 'Secuencia visual y textos en pantalla' : 'Guion o estructura del video'} value={selectedPlanItem.scriptText || ''} onChange={v => updateArray('monthPlan', activePiece, 'scriptText', v)} rows={7} maxLength={8000} hint={selectedPlanItem.scriptMode === 'visual' ? 'Describe los planos, acciones, textos y cierre.' : 'Puedes separar apertura, desarrollo y cierre en párrafos.'} />
                   </>}
                 </article>
-              ))}
+              }
             </div>
           </ArraySection>
 
           {proposal.proposalType === 'initial' && <>
-            <EditorSection title="Siguiente movimiento">
+            <EditorSection title="Siguiente movimiento" {...accordion('next', proposal.stepsTitle || 'Sin título')}>
               <Input label="Título visible al cliente" value={proposal.stepsTitle || ''} onChange={v => updateField('stepsTitle', v)} />
+              {typographyFor('steps')}
             </EditorSection>
-            <ArraySection title="Pasos" items={proposal.steps} add={() => addArray('steps', emptyStep)}>
-            {proposal.steps.map((item, i) => (
-              <div className="array-card" key={i}>
-                <div className="array-head"><b>Paso {i + 1}</b><button onClick={() => removeArray('steps', i)}><Trash2 size={15} /></button></div>
-                <Input label="Título" value={item.title} onChange={v => updateArray('steps', i, 'title', v)} />
-                <Textarea label="Descripción" value={item.text} onChange={v => updateArray('steps', i, 'text', v)} />
-              </div>
-            ))}
+            <ArraySection title="Pasos" {...accordion('steps', `${proposal.steps.length} pasos`)} add={() => addSelected('steps', emptyStep, 'steps', setSelectedStep)}>
+              <CompactItemList items={proposal.steps} selectedIndex={activeStep} onSelect={setSelectedStep} labelFor={(item, i) => item.title || `Paso ${i + 1}`} metaFor={item => item.text} disabled={Boolean(activeUpload)} />
+              {activeStep >= 0 && <div className="compact-detail array-card">
+                <div className="array-head"><b>Paso {activeStep + 1}</b><button type="button" aria-label="Eliminar paso" onClick={() => removeSelected('steps', activeStep, setSelectedStep)}><Trash2 size={15} /></button></div>
+                <Input label="Título" value={proposal.steps[activeStep].title} onChange={v => updateArray('steps', activeStep, 'title', v)} />
+                <Textarea label="Descripción" value={proposal.steps[activeStep].text} onChange={v => updateArray('steps', activeStep, 'text', v)} />
+              </div>}
             </ArraySection>
           </>}
 
-          <details className="editor-section editor-optional">
-            <summary>Cierre (opcional)</summary>
-            <div className="field-grid">
-              <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
-              <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
-            </div>
-          </details>
+          <EditorSection title="Cierre (opcional)" {...accordion('close', proposal.ctaTitle || 'Sin cierre')}>
+            <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
+            <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
+            {typographyFor('close')}
+          </EditorSection>
         </section>
 
         <aside className="preview-panel">
@@ -859,19 +891,107 @@ function ProposalEditor({ id }) {
   );
 }
 
-function EditorSection({ title, children, hint }) {
-  return <section className="editor-section"><h2>{title}</h2>{hint && <p className="editor-hint">{hint}</p>}<div className="field-grid">{children}</div></section>;
+function AccordionHeader({ title, summary, expanded, onToggle, add, disableAdd }) {
+  return <div className="editor-accordion-head">
+    <button type="button" className="editor-accordion-toggle" aria-expanded={expanded} onClick={onToggle}>
+      <span className="editor-accordion-title">{title}</span>
+      <span className="editor-accordion-summary">{summary}</span>
+      <ChevronDown size={18} className={expanded ? 'is-open' : ''} aria-hidden="true" />
+    </button>
+    {add && <button className="btn btn-secondary small-btn editor-add" type="button" onClick={add} disabled={disableAdd}><Plus size={15} /> Agregar</button>}
+  </div>;
 }
 
-function ArraySection({ title, children, add, hint, options }) {
+function EditorSection({ title, children, hint, summary, expanded, onToggle }) {
+  return <section className={`editor-section editor-accordion${expanded ? ' is-open' : ''}`}>
+    <AccordionHeader title={title} summary={summary} expanded={expanded} onToggle={onToggle} />
+    <div className="editor-accordion-body" hidden={!expanded}>
+      {hint && <p className="editor-hint">{hint}</p>}
+      <div className="field-grid">{children}</div>
+    </div>
+  </section>;
+}
+
+function ArraySection({ title, children, add, disableAdd = false, hint, options, summary, expanded, onToggle }) {
   return (
-    <section className="editor-section">
-      <div className="section-row"><h2>{title}</h2>{add && <button className="btn btn-secondary small-btn" onClick={add}><Plus size={15} /> Agregar</button>}</div>
+    <section className={`editor-section editor-accordion${expanded ? ' is-open' : ''}`}>
+      <AccordionHeader title={title} summary={summary} expanded={expanded} onToggle={onToggle} add={add} disableAdd={disableAdd} />
+      <div className="editor-accordion-body" hidden={!expanded}>
       {hint && <p className="editor-hint">{hint}</p>}
       {options && <details className="item-options section-options"><summary>Cambiar título y opciones</summary><div className="field-grid">{options}</div></details>}
       <div className="array-stack">{children}</div>
+      </div>
     </section>
   );
+}
+
+function TypographySelect({ label = 'Tipografía de esta sección', value, onChange, inherit = false }) {
+  return <SelectField
+    label={label}
+    value={value}
+    onChange={onChange}
+    options={[...(inherit ? [{ value: 'inherit', label: 'Usar tipografía general' }] : []), ...TYPOGRAPHY_PRESETS]}
+  />;
+}
+
+function CompactItemList({ items, selectedIndex, onSelect, labelFor, metaFor, imageFor, getIndex = (_, index) => index, disabled = false }) {
+  const listRef = useRef(null);
+  useEffect(() => {
+    const list = listRef.current;
+    const selected = list?.querySelector('[aria-pressed="true"]');
+    if (!selected) return;
+    const top = selected.offsetTop - list.offsetTop;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + selected.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = top + selected.offsetHeight - list.clientHeight;
+    }
+  }, [selectedIndex, items.length]);
+  if (!items.length) return null;
+  return <div ref={listRef} className="compact-item-list" role="group" aria-label="Elementos de esta sección">
+    {items.map((item, position) => {
+      const index = getIndex(item, position);
+      const image = imageFor?.(item);
+      return <button type="button" key={index} className={`compact-item${selectedIndex === index ? ' is-selected' : ''}`} onClick={() => onSelect(index)} disabled={disabled} aria-pressed={selectedIndex === index}>
+        {image ? <img className="compact-item-thumb" src={image} alt="" loading="lazy" /> : <span className="compact-item-marker" aria-hidden="true">{imageFor ? <Film size={16} /> : position + 1}</span>}
+        <span className="compact-item-copy"><strong>{labelFor(item, position)}</strong><small>{metaFor?.(item, position)}</small></span>
+        <ChevronDown size={15} className="compact-item-chevron" aria-hidden="true" />
+      </button>;
+    })}
+  </div>;
+}
+
+function CoverMediaEditor({ proposal, onChange, activeUpload, setActiveUpload, storageUnavailable }) {
+  const [selected, setSelected] = useState('heroMediaUrl');
+  const visuals = [
+    { field: 'heroMediaUrl', key: 'cover-main', label: 'Visual principal', hint: 'También puedes pegar un enlace de YouTube o Vimeo.' },
+    { field: 'heroMediaBackUrl', key: 'cover-left', label: 'Visual izquierdo', hint: 'Si lo dejas vacío, usa la referencia visual 2.' },
+    { field: 'heroMediaFrontUrl', key: 'cover-right', label: 'Visual derecho', hint: 'Si lo dejas vacío, usa la referencia visual 3.' }
+  ];
+  return <div className="cover-media-editor">
+    <strong className="cover-media-heading">Visuales de portada (opcionales)</strong>
+    <div className="cover-media-strip" role="group" aria-label="Visuales de portada">
+      {visuals.map(visual => {
+        const embed = getEmbed(proposal[visual.field]);
+        return <button type="button" key={visual.field} className={`cover-media-tile${selected === visual.field ? ' is-selected' : ''}`} onClick={() => setSelected(visual.field)} disabled={Boolean(activeUpload)} aria-pressed={selected === visual.field}>
+          <span className="cover-media-thumb">{embed.type === 'image' ? <img src={embed.src} alt="" loading="lazy" /> : embed.type === 'empty' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
+          <span>{visual.label}</span>
+          <small>{proposal[visual.field] ? 'Visual agregado' : proposal.references?.length ? 'Usa referencia' : 'Sin visual'}</small>
+        </button>;
+      })}
+    </div>
+    {visuals.map(visual => <div key={visual.field} className="cover-media-fields" hidden={selected !== visual.field}>
+      <Input label={`URL de ${visual.label.toLowerCase()}`} value={proposal[visual.field] || ''} onChange={v => onChange(visual.field, v)} hint={visual.hint} />
+      <MediaUploader
+        label={`Subir ${visual.label.toLowerCase()}`}
+        proposalId={proposal.id || proposal.slug}
+        uploadKey={visual.key}
+        activeUpload={activeUpload}
+        setActiveUpload={setActiveUpload}
+        storageUnavailable={storageUnavailable}
+        onUploaded={url => onChange(visual.field, url)}
+      />
+    </div>)}
+  </div>;
 }
 
 function CalendarImporter({ onImport, existingCount = 0 }) {
@@ -1141,8 +1261,8 @@ function ProposalPage({ proposal, compact = false }) {
   const heroRight = heroFrontItem?.url && heroFrontItem !== heroCenter ? heroFrontItem : null;
 
   return (
-    <div className={compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'} style={themeVars}>
-      <header className="luxe-hero">
+    <div className={compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
+      <header className="luxe-hero" style={sectionTypographyVariables(proposal, 'cover')}>
         <div className="luxe-glow luxe-glow-one" />
         <div className="luxe-glow luxe-glow-two" />
         <div className="wrap luxe-nav">
@@ -1172,7 +1292,7 @@ function ProposalPage({ proposal, compact = false }) {
       </header>
 
       <main className="luxe-main">
-        {showIntro && <section className="luxe-section luxe-intro">
+        {showIntro && <section className="luxe-section luxe-intro" style={sectionTypographyVariables(proposal, 'intro')}>
           <div className="wrap luxe-intro-grid">
             <div>
               <div className="luxe-kicker">{String(introNumber).padStart(2, '0')} · {isMonthly ? 'Enfoque del ciclo' : 'En una frase'}</div>
@@ -1189,7 +1309,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showSystem && <section className="luxe-section luxe-system">
+        {showSystem && <section className="luxe-section luxe-system" style={sectionTypographyVariables(proposal, 'system')}>
           <div className="wrap">
             <div className="luxe-section-head">
               <div>
@@ -1211,7 +1331,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showVisuals && <section className="luxe-section luxe-visuals">
+        {showVisuals && <section className="luxe-section luxe-visuals" style={sectionTypographyVariables(proposal, 'visuals')}>
           <div className={`wrap luxe-visuals-head ${proposal.visualIntro ? '' : 'is-single'}`}>
             <div>
               <div className="luxe-kicker">{String(visualNumber).padStart(2, '0')} · Referencias visuales</div>
@@ -1233,7 +1353,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showScope && <section className="luxe-section luxe-scope">
+        {showScope && <section className="luxe-section luxe-scope" style={sectionTypographyVariables(proposal, 'scope')}>
           <div className="wrap">
             <div className="luxe-kicker">{String(scopeNumber).padStart(2, '0')} · Alcance</div>
             <h2>{proposal.deliverablesTitle || 'Alcance del ciclo'}</h2>
@@ -1243,7 +1363,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showScripts && <section className="luxe-section luxe-scripts-section">
+        {showScripts && <section className="luxe-section luxe-scripts-section" style={sectionTypographyVariables(proposal, 'scripts')}>
           <div className="wrap">
             <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · Guiones del ciclo</div>
             <h2>{proposal.scriptsTitle || 'Cada pieza, una idea clara.'}</h2>
@@ -1273,7 +1393,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showCalendar && <section className="luxe-section luxe-calendar-section">
+        {showCalendar && <section className="luxe-section luxe-calendar-section" style={sectionTypographyVariables(proposal, 'calendar')}>
           <div className="wrap">
             <div className={`luxe-calendar-head ${proposal.calendarIntro ? '' : 'is-single'}`}>
               <div>
@@ -1286,7 +1406,7 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only">
+        {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only" style={sectionTypographyVariables(proposal, 'steps')}>
           <div className="wrap luxe-steps-center">
             <div className="luxe-steps-card">
               <div className="luxe-kicker">{String(stepsNumber).padStart(2, '0')} · Arranque</div>
@@ -1305,7 +1425,7 @@ function ProposalPage({ proposal, compact = false }) {
         </section>}
       </main>
 
-      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close">
+      {(proposal.ctaTitle || proposal.ctaText) && <footer className="luxe-close" style={sectionTypographyVariables(proposal, 'close')}>
         <div className="wrap">
           <span className="luxe-kicker">Cierre</span>
           {proposal.ctaTitle && <h2>{proposal.ctaTitle}</h2>}
