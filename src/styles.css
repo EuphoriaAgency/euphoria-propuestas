@@ -692,7 +692,8 @@ body{background:var(--paper);color:var(--ink)}
 .cover-media-fields .media-upload-box{padding:9px 12px}
 .luxe-page{font-family:var(--proposal-body-font,'Inter',system-ui,sans-serif)}
 .luxe-page .luxe-hero,.luxe-page .luxe-section,.luxe-page .luxe-close{font-family:var(--proposal-body-font,'Inter',system-ui,sans-serif)}
-.luxe-page .luxe-hero h1,.luxe-page .luxe-section h2,.luxe-page .luxe-section h3,.luxe-page .luxe-close h2,.luxe-page .luxe-script-copy strong,.luxe-page .luxe-scope-item strong,.luxe-page .luxe-calendar-top strong,.luxe-page .luxe-calendar-stat strong,.luxe-page .luxe-receipt-line strong{font-family:var(--proposal-heading-font,'Fraunces',Georgia,serif)}
+.luxe-page .brand-mark,.luxe-page .luxe-hero h1,.luxe-page .luxe-section h2,.luxe-page .luxe-section h3,.luxe-page .luxe-close h2,.luxe-page .luxe-script-copy strong,.luxe-page .luxe-scope-item strong,.luxe-page .luxe-calendar-top strong,.luxe-page .luxe-calendar-stat strong,.luxe-page .luxe-receipt-line strong,.luxe-page .luxe-receipt-top strong,.luxe-page .luxe-video-placeholder strong,.luxe-page .luxe-pillar-row>span,.luxe-page .luxe-step>span{font-family:var(--proposal-heading-font,'Fraunces',Georgia,serif)}
+.typography-help{grid-column:1/-1;margin:-7px 0 7px;color:var(--ink-soft);font-size:12px;line-height:1.5}
 @media(max-width:700px){
   .editor-accordion-toggle{grid-template-columns:minmax(0,1fr) 20px;gap:3px;padding:13px 14px}
   .editor-accordion-title{font-size:17px}
