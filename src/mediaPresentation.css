@@ -1,4 +1,21 @@
 /* La portada y las referencias usan el formato real de cada archivo. */
+.luxe-page .luxe-nav {justify-content:center}
+.luxe-brand-pair {display:flex;align-items:center;justify-content:center;gap:18px;max-width:100%;min-width:0}
+.luxe-page .luxe-nav-meta {
+  display:block;min-height:0;max-width:min(420px,45vw);padding:0;margin:0;
+  border:0;border-radius:0;background:none;text-align:left;
+  font-family:var(--proposal-body-font,'Manrope',system-ui,sans-serif);
+  font-size:12px;line-height:1.35;letter-spacing:.2em;font-weight:800;
+  overflow-wrap:anywhere;
+}
+@media(max-width:700px){
+  .luxe-brand-pair {gap:12px}
+  .luxe-page .luxe-nav-meta {font-size:11px;letter-spacing:.13em;max-width:45vw}
+}
+@media(min-width:981px){
+  .luxe-page:not(.compact-preview) .luxe-intro-grid {align-items:center}
+  .luxe-page:not(.compact-preview) .luxe-intro-copy {align-self:center}
+}
 .luxe-media-frame {
   aspect-ratio:var(--media-ratio,9/16);
   height:auto;

@@ -1266,8 +1266,10 @@ function ProposalPage({ proposal, compact = false }) {
         <div className="luxe-glow luxe-glow-one" />
         <div className="luxe-glow luxe-glow-two" />
         <div className="wrap luxe-nav">
-          <div className="brand-mark light">Euphoria<span>.</span></div>
-          <div className="luxe-nav-meta">{proposal.vertical}</div>
+          <div className="luxe-brand-pair">
+            <div className="brand-mark light">Euphoria<span>.</span></div>
+            {proposal.vertical && <div className="luxe-nav-meta">{proposal.vertical}</div>}
+          </div>
         </div>
 
         <div className="wrap luxe-hero-grid">
