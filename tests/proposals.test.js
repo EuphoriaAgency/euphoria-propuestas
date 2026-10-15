@@ -9,6 +9,32 @@ import { buildProductionCalendarExport, generateProposalCalendar, rearrangePropo
 import { buildCalendarImageLayout } from '../src/proposalCalendarImage.js';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from '../src/proposalTypography.js';
 import { visibleProposalReferences } from '../src/proposalReferences.js';
+import { coverMediaLayout, editorialReferences } from '../src/proposalMediaLayout.js';
+
+test('una imagen lateral pasa al centro de portada y mantiene ambos reels visibles', () => {
+  const cover = coverMediaLayout({
+    heroMediaUrl: 'https://example.com/main.mp4',
+    heroMediaBackUrl: 'https://example.com/post.png',
+    heroMediaFrontUrl: 'https://example.com/other.webm'
+  });
+  assert.equal(cover.center.url, 'https://example.com/post.png');
+  assert.deepEqual([cover.left?.url, cover.right?.url], ['https://example.com/main.mp4', 'https://example.com/other.webm']);
+  assert.equal(cover.items.length, 3);
+});
+
+test('la portada y referencias heredadas conservan sus visuales aunque falten cargas nuevas', () => {
+  const references = [
+    { url: 'https://example.com/video.mp4' },
+    { url: 'https://example.com/post.webp' },
+    { url: 'https://example.com/otro.mp4' }
+  ];
+  const cover = coverMediaLayout({}, references);
+  assert.equal(cover.center.url, references[1].url);
+  assert.deepEqual(cover.items.map(item => item.url), [references[1].url, references[0].url, references[2].url]);
+  assert.equal(editorialReferences(references).featured, references[1]);
+  assert.deepEqual(editorialReferences(references).remaining, [references[0], references[2]]);
+  assert.deepEqual(editorialReferences([{ url: 'https://example.com/reel.mp4' }]).remaining.length, 1);
+});
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
   const draft = createBlankProposal();
