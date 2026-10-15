@@ -78,6 +78,17 @@ test('la propuesta publicada antes de introducir ciclos conserva sus títulos de
   assert.equal(restored.scriptsTitle, defaultProposal.scriptsTitle);
 });
 
+test('una propuesta inicial se publica sin capturar entregables de cotización', () => {
+  const proposal = normalizeProposal({
+    clientName: 'Dra. Ejemplo', proposalType: 'initial',
+    strategyTitle: 'Enfoque', strategyText: 'Desarrollo de contenido',
+    deliverables: [],
+    periodStart: '2026-11-01', periodEnd: '2026-11-30',
+    monthPlan: [{ date: '2026-11-04', piece: 'Reel 1', topic: 'Dolor de rodilla' }]
+  });
+  assert.equal(validatePublication(proposal), '');
+});
+
 test('un selector ofrece fuentes únicas y combinadas sin perder la configuración anterior', () => {
   const legacy = normalizeProposal({ clientName: 'Cliente anterior', sectionTypography: null });
   assert.equal(legacy.typographyPreset, 'editorial');

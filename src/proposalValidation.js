@@ -6,7 +6,6 @@ export function validatePublication(proposal) {
   const initial = proposal.proposalType === 'initial';
   const showCalendar = proposal.showCalendar !== false;
   if (initial && showCalendar && (!proposal.strategyTitle?.trim() || !proposal.strategyText?.trim())) return 'Completa la estrategia principal de la propuesta inicial.';
-  if (initial && showCalendar && !proposal.deliverables?.some(item => String(item.label || '').trim() && String(item.value || '').trim())) return 'Agrega al menos un entregable con su cantidad.';
   if (!showCalendar) {
     const videos = (proposal.monthPlan || []).filter(isVideoPiece);
     if (!videos.length) return 'Agrega al menos un video en Videos y guiones.';

@@ -42,7 +42,6 @@ import { visibleProposalReferences } from './proposalReferences';
 
 const emptyPillar = { label: '', title: '', text: '' };
 const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
-const emptyDeliverable = { label: '', value: '' };
 const emptyPlan = { date: '', piece: '', type: '', pillar: '', topic: '', objective: '', status: '' };
 const emptyStep = { title: '', text: '' };
 const PALETTE_OPTIONS = [
@@ -730,55 +729,6 @@ function ProposalEditor({ id }) {
             </ArraySection>
           </>}
 
-          <ArraySection
-            title="Referencias (opcional)"
-            {...accordion('references', `${proposal.references.length} referencias`)}
-            add={() => addSelected('references', emptyReference, 'references', setSelectedReference)}
-            disableAdd={Boolean(activeUpload)}
-            hint="Aparecen en la vista previa cuando agregas una referencia con título o enlace."
-            options={<>
-              <Input label="Título de la sección" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
-              <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
-            </>}
-          >
-            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : ''} disabled={Boolean(activeUpload)} />
-            {activeReference >= 0 && <div className="compact-detail array-card">
-                <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
-                <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
-                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateArray('references', activeReference, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
-                <MediaUploader
-                  label="Subir imagen/video de referencia"
-                  proposalId={proposal.id || proposal.slug}
-                  uploadKey={`reference-${activeReference}`}
-                  activeUpload={activeUpload}
-                  setActiveUpload={setActiveUpload}
-                  storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateArray('references', activeReference, 'url', url)}
-                />
-                <details className="item-options">
-                  <summary>Contexto de la referencia (opcional)</summary>
-                  <Input label="Categoría" value={proposal.references[activeReference].pillar} onChange={v => updateArray('references', activeReference, 'pillar', v)} />
-                  <Textarea label="Qué nos gusta" value={proposal.references[activeReference].note} onChange={v => updateArray('references', activeReference, 'note', v)} />
-                </details>
-              </div>}
-          </ArraySection>
-
-          <ArraySection
-            title="Qué incluye"
-            {...accordion('scope', `${proposal.deliverables.length} entregables`)}
-            add={() => { setOpenSection('scope'); addArray('deliverables', emptyDeliverable); }}
-            hint="Aparece en la vista previa cuando agregas un entregable."
-            options={<Input label="Título de la sección" value={proposal.deliverablesTitle || ''} onChange={v => updateField('deliverablesTitle', v)} />}
-          >
-            {proposal.deliverables.map((item, i) => (
-              <div className="two-col array-line" key={i}>
-                <Input label="Entregable" value={item.label} onChange={v => updateArray('deliverables', i, 'label', v)} />
-                <Input label="Cantidad / detalle" value={item.value} onChange={v => updateArray('deliverables', i, 'value', v)} />
-                <button className="mini-trash" onClick={() => removeArray('deliverables', i)}><Trash2 size={15} /></button>
-              </div>
-            ))}
-          </ArraySection>
-
           {!productionOnly && <ArraySection
             title="Calendario editorial"
             {...accordion('calendar', `${dateSummary} · ${proposal.monthPlan.length} piezas`)}
@@ -876,6 +826,39 @@ function ProposalEditor({ id }) {
             <Input label="Título final" value={proposal.ctaTitle} onChange={v => updateField('ctaTitle', v)} />
             <Textarea label="Texto final" value={proposal.ctaText} onChange={v => updateField('ctaText', v)} />
           </EditorSection>
+
+          <ArraySection
+            title="Referencias (opcional)"
+            {...accordion('references', `${proposal.references.length} referencias`)}
+            add={() => addSelected('references', emptyReference, 'references', setSelectedReference)}
+            disableAdd={Boolean(activeUpload)}
+            hint="Aparecen al final de la propuesta cuando agregas una referencia con título o enlace."
+            options={<>
+              <Input label="Título de la sección" value={proposal.visualTitle || ''} onChange={v => updateField('visualTitle', v)} />
+              <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
+            </>}
+          >
+            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : ''} disabled={Boolean(activeUpload)} />
+            {activeReference >= 0 && <div className="compact-detail array-card">
+                <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
+                <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
+                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateArray('references', activeReference, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
+                <MediaUploader
+                  label="Subir imagen/video de referencia"
+                  proposalId={proposal.id || proposal.slug}
+                  uploadKey={`reference-${activeReference}`}
+                  activeUpload={activeUpload}
+                  setActiveUpload={setActiveUpload}
+                  storageUnavailable={storageCheck?.state === 'missing'}
+                  onUploaded={url => updateArray('references', activeReference, 'url', url)}
+                />
+                <details className="item-options">
+                  <summary>Contexto de la referencia (opcional)</summary>
+                  <Input label="Categoría" value={proposal.references[activeReference].pillar} onChange={v => updateArray('references', activeReference, 'pillar', v)} />
+                  <Textarea label="Qué nos gusta" value={proposal.references[activeReference].note} onChange={v => updateArray('references', activeReference, 'note', v)} />
+                </details>
+              </div>}
+          </ArraySection>
         </section>
 
         <aside className="preview-panel">
@@ -1220,7 +1203,6 @@ function ProposalPage({ proposal, compact = false }) {
   const isMonthly = proposal.proposalType === 'monthly';
   const references = visibleProposalReferences(proposal.references);
   const themeVars = getThemeVars(proposal.themePreset, proposal.customAccent, proposal.customAccentDark);
-  const primaryDeliverables = (proposal.deliverables || []).filter(d => d?.label || d?.value).slice(0, 6);
   const primarySteps = (proposal.steps || [])
     .filter(s => s?.title || s?.text)
     .filter(s => !/calendario/i.test(`${s?.title || ''} ${s?.text || ''}`))
@@ -1231,18 +1213,16 @@ function ProposalPage({ proposal, compact = false }) {
   const showIntro = Boolean(proposal.strategyTitle || proposal.strategyText || (!isMonthly && (proposal.diagnosisText || proposal.audienceNeeds || proposal.agendaText)));
   const showSystem = !isMonthly && Boolean(proposal.creativeApproach || pillars.length);
   const showVisuals = references.length > 0;
-  const showScope = isMonthly && primaryDeliverables.length > 0;
   const showScripts = scriptedVideos.length > 0;
   const showCalendar = proposal.showCalendar !== false && primaryPlan.length > 0;
   const showSteps = !isMonthly && primarySteps.length > 0;
   let sectionCount = 0;
   const introNumber = showIntro ? ++sectionCount : null;
   const systemNumber = showSystem ? ++sectionCount : null;
-  const visualNumber = showVisuals ? ++sectionCount : null;
-  const scopeNumber = showScope ? ++sectionCount : null;
   const scriptsNumber = showScripts ? ++sectionCount : null;
-  const calendarNumber = showCalendar ? ++sectionCount : null;
   const stepsNumber = showSteps ? ++sectionCount : null;
+  const calendarNumber = showCalendar ? ++sectionCount : null;
+  const visualNumber = showVisuals ? ++sectionCount : null;
   const heroBackItem = proposal.heroMediaBackUrl
     ? { url: proposal.heroMediaBackUrl, title: 'Hero visual izquierdo' }
     : references[1];
@@ -1327,38 +1307,6 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showVisuals && <section className="luxe-section luxe-visuals">
-          <div className={`wrap luxe-visuals-head ${proposal.visualIntro ? '' : 'is-single'}`}>
-            <div>
-              <div className="luxe-kicker">{String(visualNumber).padStart(2, '0')} · Referencias visuales</div>
-              <h2>{proposal.visualTitle || 'Referencias visuales'}</h2>
-            </div>
-            {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
-          </div>
-          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
-            {references.map((ref, i) => (
-              <article className="luxe-reference" key={i}>
-                <VideoMockup refItem={ref} label={ref.pillar || `Referencia ${i + 1}`} />
-                <div>
-                  <span>{ref.pillar}</span>
-                  <h3>{ref.title}</h3>
-                  <p>{ref.note}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>}
-
-        {showScope && <section className="luxe-section luxe-scope">
-          <div className="wrap">
-            <div className="luxe-kicker">{String(scopeNumber).padStart(2, '0')} · Alcance</div>
-            <h2>{proposal.deliverablesTitle || 'Alcance del ciclo'}</h2>
-            <div className="luxe-scope-grid">
-              {primaryDeliverables.map((item, i) => <div className="luxe-scope-item" key={i}><strong>{item.value}</strong><span>{item.label}</span></div>)}
-            </div>
-          </div>
-        </section>}
-
         {showScripts && <section className="luxe-section luxe-scripts-section">
           <div className="wrap">
             <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · {proposal.showCalendar === false ? 'Videos y guiones' : 'Guiones del ciclo'}</div>
@@ -1389,13 +1337,6 @@ function ProposalPage({ proposal, compact = false }) {
           </div>
         </section>}
 
-        {showCalendar && <section className="luxe-section luxe-calendar-section">
-          <div className="wrap">
-            <div className="luxe-kicker">{String(calendarNumber).padStart(2, '0')} · Calendario de contenido</div>
-            <CalendarImageDownload proposal={proposal} themeVars={themeVars} />
-          </div>
-        </section>}
-
         {showSteps && <section className="luxe-section luxe-launch luxe-launch-steps-only">
           <div className="wrap luxe-steps-center">
             <div className="luxe-steps-card">
@@ -1411,6 +1352,35 @@ function ProposalPage({ proposal, compact = false }) {
                 </div>
               ))}
             </div>
+          </div>
+        </section>}
+
+        {showCalendar && <section className="luxe-section luxe-calendar-section">
+          <div className="wrap">
+            <div className="luxe-kicker">{String(calendarNumber).padStart(2, '0')} · Calendario de contenido</div>
+            <CalendarImageDownload proposal={proposal} themeVars={themeVars} />
+          </div>
+        </section>}
+
+        {showVisuals && <section className="luxe-section luxe-visuals">
+          <div className={`wrap luxe-visuals-head ${proposal.visualIntro ? '' : 'is-single'}`}>
+            <div>
+              <div className="luxe-kicker">{String(visualNumber).padStart(2, '0')} · Referencias visuales</div>
+              <h2>{proposal.visualTitle || 'Referencias visuales'}</h2>
+            </div>
+            {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
+          </div>
+          <div className="wrap luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
+            {references.map((ref, i) => (
+              <article className="luxe-reference" key={i}>
+                <VideoMockup refItem={ref} label={ref.pillar || `Referencia ${i + 1}`} />
+                <div>
+                  <span>{ref.pillar}</span>
+                  <h3>{ref.title}</h3>
+                  <p>{ref.note}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </section>}
       </main>
