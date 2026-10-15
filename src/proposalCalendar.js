@@ -1,4 +1,5 @@
 import { resolveProposalPeriod, validDay } from './proposalPeriod.js';
+import { arrangeProposalPieces } from './proposalArrangement.js';
 
 export const CONTENT_COUNTS = [
   ['reels', 'Videos / reels'],
@@ -11,7 +12,11 @@ export const CONTENT_COUNTS = [
 const TYPE_KEYS = { Reel: 'reels', Post: 'posts', Carrusel: 'posts', Foto: 'photos', UGC: 'ugc', Promocional: 'promocional' };
 
 function typeOf(item = {}) {
-  const text = String(item.type || item.piece || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  // Al renombrar «Reel 1» a «Post 1», el formato debe acompañar el nombre;
+  // para nombres libres se conserva el tipo importado o generado.
+  const piece = String(item.piece || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const text = /(ugc|promocional|reel|video|clip|carrusel|carousel|foto|photo|imagen|post|estatic|static)/.test(piece)
+    ? piece : String(item.type || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (/ugc/.test(text)) return 'UGC';
   if (/promocional/.test(text)) return 'Promocional';
   if (/reel|video|clip/.test(text)) return 'Reel';
@@ -43,17 +48,6 @@ function dayRange(start, end) {
   return days;
 }
 
-function scheduledDays(days, count, seed = 0) {
-  const slots = [];
-  for (let i = 0; i < count; i++) {
-    const low = Math.floor(i * days.length / count);
-    const high = Math.max(low, Math.floor((i + 1) * days.length / count) - 1);
-    const offset = seed ? (seed + i * 7) % (high - low + 1) : Math.floor((high - low) / 2);
-    slots.push(days[low + offset]);
-  }
-  return slots;
-}
-
 function desiredCounts(raw = {}) {
   const counts = {};
   for (const [key] of CONTENT_COUNTS) {
@@ -81,6 +75,8 @@ function label(type, index) {
   return `${type} ${index}`;
 }
 
+const groupOf = item => ['Reel', 'UGC', 'Promocional'].includes(typeOf(item)) ? 'video' : 'static';
+
 export function generateProposalCalendar(proposal) {
   const { start, end } = resolveProposalPeriod(proposal);
   const days = dayRange(start, end);
@@ -92,12 +88,10 @@ export function generateProposalCalendar(proposal) {
   for (const item of existing) {
     const type = typeOf(item);
     if (!type) throw new Error('Hay una pieza sin tipo reconocido. Revísala antes de generar más.');
-    if (item.date) {
-      if (!validDay(item.date) || item.date < start || item.date > end || occupied.has(item.date)) {
-        throw new Error('Hay fechas inválidas, fuera del periodo o repetidas. Revísalas antes de generar.');
-      }
-      occupied.add(item.date);
+    if (!days.includes(item.date) || occupied.has(item.date)) {
+      throw new Error('Hay fechas vacías, fuera del periodo, en domingo o repetidas. Revísalas antes de generar.');
     }
+    occupied.add(item.date);
     found[TYPE_KEYS[type]]++;
     const match = String(item.piece || '').match(/(\d+)\s*$/);
     numbering[type] = Math.max(numbering[type], Number(match?.[1] || 0));
@@ -109,11 +103,12 @@ export function generateProposalCalendar(proposal) {
   const queue = typeQueue(missingCounts);
   const available = days.filter(day => !occupied.has(day));
   if (queue.length > available.length) throw new Error(`Faltan días de publicación: hay ${available.length} libres para ${queue.length} piezas. Amplía el periodo o reduce cantidades.`);
-  const slots = scheduledDays(available, queue.length);
   const added = queue.map((type, index) => ({
-    date: slots[index], piece: label(type, ++numbering[type]), type, pillar: '', topic: '', objective: '', status: ''
+    date: '', piece: label(type, ++numbering[type]), type, pillar: '', topic: '', objective: '', status: ''
   }));
-  return { items: [...existing, ...added].sort((a, b) => a.date.localeCompare(b.date)), added: added.length };
+  if (!added.length) return { items: [...existing].sort((a, b) => a.date.localeCompare(b.date)), added: 0 };
+  const layout = arrangeProposalPieces({ pieces: added, fixed: existing, days: available, groupOf, preserveOrder: true, seed: 1 });
+  return { items: [...existing, ...layout.items].sort((a, b) => a.date.localeCompare(b.date)), added: added.length };
 }
 
 export function rearrangeProposalCalendar(proposal, seed = 1) {
@@ -122,13 +117,11 @@ export function rearrangeProposalCalendar(proposal, seed = 1) {
   const items = [...(proposal.monthPlan || [])];
   if (!items.length) throw new Error('Primero genera o agrega piezas al calendario.');
   if (items.length > days.length) throw new Error('No caben todas las piezas en este periodo sin repetir días.');
-  if (items.some(item => !validDay(item.date) || !typeOf(item))) throw new Error('Revisa las fechas y tipos de todas las piezas antes de reacomodar.');
-  const indices = items.map((item, index) => ({ ...item, index })).sort((a, b) => a.date.localeCompare(b.date) || a.index - b.index);
-  let slots = scheduledDays(days, items.length, seed);
-  for (let attempt = 1; attempt < days.length && slots.every((day, i) => day === indices[i].date); attempt++) {
-    slots = scheduledDays(days, items.length, seed + attempt);
+  if (items.some(item => !typeOf(item) || !days.includes(item.date)) || new Set(items.map(item => item.date)).size !== items.length) {
+    throw new Error('Revisa los formatos y las fechas de todas las piezas antes de reacomodar.');
   }
-  return { items: items.map((item, index) => ({ ...item, date: slots[indices.findIndex(entry => entry.index === index)] })), changed: slots.some((day, i) => day !== indices[i].date) };
+  const layout = arrangeProposalPieces({ pieces: items, days, groupOf, seed });
+  return { ...layout, items: layout.items.sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
 export function buildProductionCalendarExport(proposal) {
