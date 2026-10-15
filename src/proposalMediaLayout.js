@@ -1,10 +1,16 @@
 import { getEmbed } from './mediaEmbed.js';
 
 export function coverMediaLayout(proposal, references = []) {
+  const coverSlot = (slot, urlField, posterField, reference, title) => ({
+    slot,
+    url: proposal[urlField] || reference?.url || '',
+    posterUrl: proposal[urlField] ? proposal[posterField] || '' : reference?.posterUrl || '',
+    title
+  });
   const slots = {
-    main: { slot: 'main', url: proposal.heroMediaUrl || references[0]?.url || '', title: 'Visual principal' },
-    left: { slot: 'left', url: proposal.heroMediaBackUrl || references[1]?.url || '', title: 'Visual izquierdo' },
-    right: { slot: 'right', url: proposal.heroMediaFrontUrl || references[2]?.url || '', title: 'Visual derecho' }
+    main: coverSlot('main', 'heroMediaUrl', 'heroMediaPosterUrl', references[0], 'Visual principal'),
+    left: coverSlot('left', 'heroMediaBackUrl', 'heroMediaBackPosterUrl', references[1], 'Visual izquierdo'),
+    right: coverSlot('right', 'heroMediaFrontUrl', 'heroMediaFrontPosterUrl', references[2], 'Visual derecho')
   };
   const available = [slots.main, slots.left, slots.right].filter(item => item.url);
   // Las piezas estáticas necesitan más anchura que un reel. La principal gana
@@ -26,4 +32,19 @@ export function editorialReferences(references = []) {
     featured: references[imageIndex],
     remaining: references.filter((_, index) => index !== imageIndex)
   };
+}
+
+// Una fila nunca termina con una sola referencia. La primera imagen abre la
+// galería; el resto conserva su orden y se distribuye en filas de 2 a 4.
+export function editorialReferenceRows(references = []) {
+  const { featured, remaining } = editorialReferences(references);
+  const ordered = featured ? [featured, ...remaining] : remaining;
+  const rows = [];
+  for (let index = 0; index < ordered.length;) {
+    const left = ordered.length - index;
+    const size = left <= 4 ? left : left % 3 === 1 ? 4 : 3;
+    rows.push(ordered.slice(index, index + size));
+    index += size;
+  }
+  return rows;
 }

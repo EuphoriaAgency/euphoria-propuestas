@@ -9,7 +9,7 @@ import { buildProductionCalendarExport, generateProposalCalendar, rearrangePropo
 import { buildCalendarImageLayout } from '../src/proposalCalendarImage.js';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from '../src/proposalTypography.js';
 import { visibleProposalReferences } from '../src/proposalReferences.js';
-import { coverMediaLayout, editorialReferences } from '../src/proposalMediaLayout.js';
+import { coverMediaLayout, editorialReferences, editorialReferenceRows } from '../src/proposalMediaLayout.js';
 
 test('una imagen lateral pasa al centro de portada y mantiene ambos reels visibles', () => {
   const cover = coverMediaLayout({
@@ -34,6 +34,26 @@ test('la portada y referencias heredadas conservan sus visuales aunque falten ca
   assert.equal(editorialReferences(references).featured, references[1]);
   assert.deepEqual(editorialReferences(references).remaining, [references[0], references[2]]);
   assert.deepEqual(editorialReferences([{ url: 'https://example.com/reel.mp4' }]).remaining.length, 1);
+});
+
+test('cuatro referencias quedan en una fila editorial y los grupos largos no dejan huérfanas', () => {
+  for (let count = 1; count <= 13; count++) {
+    const references = Array.from({ length: count }, (_, index) => ({ url: `https://example.com/reel-${index}.mp4` }));
+    if (count > 1) references[1] = { url: 'https://example.com/post.jpg' };
+    const rows = editorialReferenceRows(references);
+    assert.equal(rows.flat().length, count);
+    assert.deepEqual(rows.flat().map(item => item.url), count > 1
+      ? [references[1], references[0], ...references.slice(2)].map(item => item.url)
+      : references.map(item => item.url));
+    assert.ok(rows.length === 1 || rows.every(row => row.length >= 2));
+    if (count === 4) assert.deepEqual(rows.map(row => row.length), [4]);
+  }
+});
+
+test('la portada toma miniaturas de cargas propias y de referencias heredadas', () => {
+  const references = [{ url: 'https://example.com/reel.mp4', posterUrl: 'https://example.com/reel.jpg' }];
+  assert.equal(coverMediaLayout({}, references).center.posterUrl, references[0].posterUrl);
+  assert.equal(coverMediaLayout({ heroMediaUrl: references[0].url, heroMediaPosterUrl: 'https://example.com/nuevo.jpg' }, references).center.posterUrl, 'https://example.com/nuevo.jpg');
 });
 
 test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () => {
@@ -87,6 +107,7 @@ test('duplicar conserva la identidad y el color, pero limpia los datos del ciclo
   assert.deepEqual(next.monthPlan, []);
   assert.equal(next.scriptsTitle, 'Cada pieza, una idea clara.');
   assert.equal(next.heroMediaUrl, '');
+  assert.equal(next.heroMediaPosterUrl, '');
   assert.deepEqual(resolveProposalPeriod({ ...next, calendarImportPeriod: { startDate: '2026-10-01', endDate: '2026-10-31' } }), { start: '', end: '' });
 });
 
