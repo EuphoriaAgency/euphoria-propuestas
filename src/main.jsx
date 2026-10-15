@@ -89,6 +89,19 @@ function contrastTextFor(hex) {
   return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (darkTextLuminance + 0.05) ? '#fff' : '#111';
 }
 
+function readableAccentOnPaper(hex) {
+  let color = normalizeHexColor(hex);
+  const paper = 0.84;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const channels = [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16) / 255);
+    const luminance = channels.reduce((sum, value, index) => sum +
+      (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][index], 0);
+    if ((paper + 0.05) / (luminance + 0.05) >= 4.5) break;
+    color = `#${channels.map(value => Math.round(value * 255 * 0.82).toString(16).padStart(2, '0')).join('')}`;
+  }
+  return color;
+}
+
 function getThemeVars(themePreset, customAccent = '#8b1628', customAccentDark = '') {
   const base = getPalette(themePreset);
   const isCustom = themePreset === 'custom';
@@ -103,6 +116,9 @@ function getThemeVars(themePreset, customAccent = '#8b1628', customAccentDark = 
     '--gold': accent,
     '--lux-red': accent,
     '--lux-red-deep': accentDark,
+    '--proposal-primary-ink': readableAccentOnPaper(accent),
+    '--proposal-secondary': accentDark,
+    '--proposal-secondary-ink': readableAccentOnPaper(accentDark),
     '--calendar-video-text': contrastTextFor(accent),
     '--accent-shadow': hexToRgba(accent, 0.24, base.accent),
     '--accent-dark-shadow': hexToRgba(accentDark, 0.22, base.accentDark),
@@ -466,7 +482,7 @@ function Dashboard() {
                 <div>
                   <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
                   <h3>{item.clientName || 'Sin nombre'}</h3>
-                  <p>{item.heroEyebrow || item.vertical || 'Propuesta'} · {(() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
+                  <p>{item.heroEyebrow || item.vertical || 'Propuesta'} · {item.showCalendar === false ? 'Solo producción · videos y guiones' : (() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
                 </div>
                 <div className="row gap wrap-row">
                   <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
@@ -638,6 +654,11 @@ function ProposalEditor({ id }) {
   const scriptCount = proposal.monthPlan.filter(item => isVideoPiece(item) && item.scriptText?.trim()).length;
   const coverVisualCount = [proposal.heroMediaUrl, proposal.heroMediaBackUrl, proposal.heroMediaFrontUrl].filter(Boolean).length;
   const dateSummary = proposal.periodStart && proposal.periodEnd ? `${proposal.periodStart} – ${proposal.periodEnd}` : 'Sin fechas';
+  const productionOnly = proposal.showCalendar === false;
+  const usedVideoNumbers = new Set(proposal.monthPlan.filter(isVideoPiece)
+    .map(item => Number(String(item.piece || '').match(/\b(?:reel|video)\s*(\d+)\b/i)?.[1])).filter(Boolean));
+  const nextVideoNumber = Array.from({ length: proposal.monthPlan.length + 1 }, (_, index) => index + 1)
+    .find(number => !usedVideoNumbers.has(number));
 
   return (
     <div className="admin-shell">
@@ -669,13 +690,16 @@ function ProposalEditor({ id }) {
           <EditorSection title="Portada y estilo" {...accordion('cover', `${proposal.clientName || 'Sin cliente'} · ${proposal.heroEyebrow || 'Sin etiqueta'} · ${coverVisualCount} visuales`)}>
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
             <Input label="Etiqueta de portada" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Escribe «Ciclo 2 · noviembre» o el texto que quieras. No se agregan fechas automáticamente." />
+            <SelectField label="Contenido de la propuesta" value={productionOnly ? 'production' : 'calendar'} onChange={v => updateField('showCalendar', v === 'calendar')} options={[{ value: 'calendar', label: 'Con calendario editorial' }, { value: 'production', label: 'Solo producción · videos y guiones' }]} />
+            <p className="typography-help">Solo producción muestra los videos con su desarrollo, sin fechas ni calendario. Puedes cambiar de formato sin perder las piezas guardadas.</p>
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
             <TypographySelect value={proposal.typographyPreset || 'editorial'} onChange={updateTypographyPreset} />
-            <p className="typography-help">Una fuente para todo, o una combinación para títulos y texto. Este ajuste cambia la propuesta completa.</p>
+              <p className="typography-help">Una fuente para todo, o una combinación para títulos y texto. Este ajuste cambia la propuesta completa.</p>
             {proposal.themePreset === 'custom' && (
               <>
                 <ColorField label="Color principal" value={proposal.customAccent || '#8b1628'} onChange={v => updateField('customAccent', v)} />
-                <ColorField label="Color oscuro" value={proposal.customAccentDark || proposal.customAccent || '#5f1421'} onChange={v => updateField('customAccentDark', v)} />
+                <ColorField label="Segundo color" value={proposal.customAccentDark || proposal.customAccent || '#5f1421'} onChange={v => updateField('customAccentDark', v)} />
+                <p className="typography-help">El primero destaca videos; el segundo distingue estáticos, detalles y secciones del documento.</p>
               </>
             )}
             <CoverMediaEditor
@@ -773,7 +797,7 @@ function ProposalEditor({ id }) {
             ))}
           </ArraySection>
 
-          <ArraySection
+          {!productionOnly && <ArraySection
             title="Calendario editorial"
             {...accordion('calendar', `${dateSummary} · ${proposal.monthPlan.length} piezas`)}
             hint="Define las cantidades y el periodo. Genera el primer calendario aquí; después podrás mover fechas o editar cada pieza."
@@ -814,31 +838,34 @@ function ProposalEditor({ id }) {
                 existingCount={(proposal.monthPlan || []).length}
               />
             </details>
-          </ArraySection>
+          </ArraySection>}
 
           <ArraySection
-            title="Piezas y guiones"
-            {...accordion('scripts', `${proposal.monthPlan.length} piezas · ${scriptCount} guiones escritos`)}
-            add={() => { setPieceFilter('all'); addSelected('monthPlan', emptyPlan, 'scripts', setSelectedPiece); }}
-            hint="Edita fecha, número y tema en la misma ficha. Los videos incluyen su guion o secuencia visual; los posts solo necesitan tema."
+            title={productionOnly ? 'Videos y guiones' : 'Piezas y guiones'}
+            {...accordion('scripts', productionOnly ? `${videoCount} videos · ${scriptCount} guiones escritos` : `${proposal.monthPlan.length} piezas · ${scriptCount} guiones escritos`)}
+            add={() => {
+              setPieceFilter('all');
+              addSelected('monthPlan', productionOnly ? { ...emptyPlan, piece: `Reel ${nextVideoNumber}`, type: 'Reel' } : emptyPlan, 'scripts', setSelectedPiece);
+            }}
+            hint={productionOnly ? 'Agrega cada video con número, tema y guion o secuencia visual. No necesitas fechas; los posts guardados no aparecen en el enlace del cliente.' : 'Edita fecha, número y tema en la misma ficha. Los videos incluyen su guion o secuencia visual; los posts solo necesitan tema.'}
             options={<Input label="Título visible de guiones" value={proposal.scriptsTitle || ''} onChange={v => updateField('scriptsTitle', v)} />}
           >
             <div className="script-editor-list">
-              {proposal.monthPlan.length === 0 && <p className="muted">Genera el calendario o agrega una pieza para comenzar.</p>}
+              {proposal.monthPlan.length === 0 && <p className="muted">{productionOnly ? 'Agrega el primer video para comenzar.' : 'Genera el calendario o agrega una pieza para comenzar.'}</p>}
               {proposal.monthPlan.length > 0 && pieceEntries.length === 0 && <p className="muted">No hay piezas de este tipo.</p>}
               {proposal.monthPlan.length > 0 && <div className="compact-filter-row" role="group" aria-label="Filtrar piezas">
                 {[['all', 'Todas', proposal.monthPlan.length], ['video', 'Videos', videoCount], ['static', 'Estáticos', proposal.monthPlan.length - videoCount]].map(([key, label, count]) =>
                   <button type="button" key={key} className={pieceFilter === key ? 'is-active' : ''} onClick={() => setPieceFilter(key)}>{label} <span>{count}</span></button>
                 )}
               </div>}
-              <CompactItemList items={pieceEntries} selectedIndex={activePiece} onSelect={setSelectedPiece} getIndex={entry => entry.index} labelFor={({ item }, i) => item.piece || `Pieza ${pieceEntries[i].index + 1}`} metaFor={({ item }) => `${item.date || 'Sin fecha'} · ${item.topic || 'Sin tema'}${isVideoPiece(item) ? item.scriptText?.trim() ? ' · Guion listo' : ' · Guion pendiente' : ''}`} disabled={Boolean(activeUpload)} />
+              <CompactItemList items={pieceEntries} selectedIndex={activePiece} onSelect={setSelectedPiece} getIndex={entry => entry.index} labelFor={({ item }, i) => item.piece || `Pieza ${pieceEntries[i].index + 1}`} metaFor={({ item }) => `${productionOnly ? '' : `${item.date || 'Sin fecha'} · `}${item.topic || 'Sin tema'}${isVideoPiece(item) ? item.scriptText?.trim() ? ' · Guion listo' : ' · Guion pendiente' : ''}`} disabled={Boolean(activeUpload)} />
               {selectedPlanItem && <article className="script-editor-card compact-detail" key={activePiece}>
                   <div className="script-editor-head">
                     <b>{selectedPlanItem.piece || `Pieza ${activePiece + 1}`}</b>
                     <button type="button" className="mini-trash" aria-label={`Quitar ${selectedPlanItem.piece || `pieza ${activePiece + 1}`}`} onClick={() => removeSelected('monthPlan', activePiece, setSelectedPiece)}><Trash2 size={15} /></button>
                   </div>
-                  <Input label="Fecha de publicación" type="date" value={selectedPlanItem.date || ''} onChange={v => updateArray('monthPlan', activePiece, 'date', v)} />
-                  <Input label="Pieza (Reel 1, Post 1…)" value={selectedPlanItem.piece} onChange={v => { setPieceFilter('all'); updateArray('monthPlan', activePiece, 'piece', v); }} />
+                  {!productionOnly && <Input label="Fecha de publicación" type="date" value={selectedPlanItem.date || ''} onChange={v => updateArray('monthPlan', activePiece, 'date', v)} />}
+                  <Input label={productionOnly ? 'Número del video (Reel 1…)' : 'Pieza (Reel 1, Post 1…)'} value={selectedPlanItem.piece} onChange={v => { setPieceFilter('all'); updateArray('monthPlan', activePiece, 'piece', v); }} />
                   <Input label="Título / tema" wide={!isVideoPiece(selectedPlanItem)} value={selectedPlanItem.topic || ''} onChange={v => updateArray('monthPlan', activePiece, 'topic', v)} />
                   {isVideoPiece(selectedPlanItem) && <>
                     <SelectField label="Formato del video" value={selectedPlanItem.scriptMode || 'voice'} onChange={v => updateArray('monthPlan', activePiece, 'scriptMode', v)} options={[{ value: 'voice', label: 'Con voz · guion hablado' }, { value: 'visual', label: 'Sin voz · secuencia visual' }]} />
@@ -1224,7 +1251,7 @@ function ProposalPage({ proposal, compact = false }) {
   const showVisuals = references.length > 0;
   const showScope = isMonthly && primaryDeliverables.length > 0;
   const showScripts = scriptedVideos.length > 0;
-  const showCalendar = primaryPlan.length > 0;
+  const showCalendar = proposal.showCalendar !== false && primaryPlan.length > 0;
   const showSteps = !isMonthly && primarySteps.length > 0;
   let sectionCount = 0;
   const introNumber = showIntro ? ++sectionCount : null;
@@ -1248,7 +1275,7 @@ function ProposalPage({ proposal, compact = false }) {
   const heroRight = heroFrontItem?.url && heroFrontItem !== heroCenter ? heroFrontItem : null;
 
   return (
-    <div className={compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
+    <div className={`${compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'}${proposal.themePreset === 'custom' && themeVars['--lux-red'] !== themeVars['--proposal-secondary'] ? ' dual-accent' : ''}`} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
       <header className="luxe-hero">
         <div className="luxe-glow luxe-glow-one" />
         <div className="luxe-glow luxe-glow-two" />
@@ -1352,8 +1379,8 @@ function ProposalPage({ proposal, compact = false }) {
 
         {showScripts && <section className="luxe-section luxe-scripts-section">
           <div className="wrap">
-            <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · Guiones del ciclo</div>
-            <h2>{proposal.scriptsTitle || 'Cada pieza, una idea clara.'}</h2>
+            <div className="luxe-kicker">{String(scriptsNumber).padStart(2, '0')} · {proposal.showCalendar === false ? 'Videos y guiones' : 'Guiones del ciclo'}</div>
+            <h2>{proposal.showCalendar === false && (!proposal.scriptsTitle || proposal.scriptsTitle === 'Cada pieza, una idea clara.') ? 'Videos y su desarrollo' : proposal.scriptsTitle || 'Cada pieza, una idea clara.'}</h2>
             <div className="luxe-script-list">
               {scriptedVideos.map((item, index) => (
                 <details className="luxe-script-item" key={`${item.piece}-${item.index}`}>
@@ -1366,7 +1393,7 @@ function ProposalPage({ proposal, compact = false }) {
                     </span>
                     <span className="luxe-script-side">
                       <span className="luxe-script-mode">{item.scriptMode === 'visual' ? 'Sin voz' : 'Con voz'}</span>
-                      {formatScriptDate(item.date) && <span className="luxe-script-date">Se publica {formatScriptDate(item.date)}</span>}
+                      {proposal.showCalendar !== false && formatScriptDate(item.date) && <span className="luxe-script-date">Se publica {formatScriptDate(item.date)}</span>}
                     </span>
                     <span className="luxe-script-toggle" aria-hidden="true">+</span>
                   </summary>

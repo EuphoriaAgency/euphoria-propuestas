@@ -1,10 +1,20 @@
 import { resolveProposalPeriod, validDay } from './proposalPeriod.js';
+import { isVideoPiece } from './proposalScripts.js';
 
 export function validatePublication(proposal) {
   if (!proposal.clientName?.trim()) return 'Escribe el nombre del cliente.';
   const initial = proposal.proposalType === 'initial';
-  if (initial && (!proposal.strategyTitle?.trim() || !proposal.strategyText?.trim())) return 'Completa la estrategia principal de la propuesta inicial.';
-  if (initial && !proposal.deliverables?.some(item => String(item.label || '').trim() && String(item.value || '').trim())) return 'Agrega al menos un entregable con su cantidad.';
+  const showCalendar = proposal.showCalendar !== false;
+  if (initial && showCalendar && (!proposal.strategyTitle?.trim() || !proposal.strategyText?.trim())) return 'Completa la estrategia principal de la propuesta inicial.';
+  if (initial && showCalendar && !proposal.deliverables?.some(item => String(item.label || '').trim() && String(item.value || '').trim())) return 'Agrega al menos un entregable con su cantidad.';
+  if (!showCalendar) {
+    const videos = (proposal.monthPlan || []).filter(isVideoPiece);
+    if (!videos.length) return 'Agrega al menos un video en Videos y guiones.';
+    if (videos.some(item => !String(item.piece || '').trim() || !String(item.topic || '').trim() || !String(item.scriptText || '').trim())) {
+      return 'Cada video necesita número, tema y guion o estructura antes de publicar.';
+    }
+    return '';
+  }
   const pieces = proposal.monthPlan?.filter(item => item.date || item.piece || item.topic) || [];
   if (!pieces.length) return 'Agrega las piezas y fechas del calendario mensual.';
   if (pieces.some(item => !item.date || !(String(item.piece || '').trim() || String(item.topic || '').trim()))) return 'Cada pieza del calendario necesita fecha y nombre o tema.';
