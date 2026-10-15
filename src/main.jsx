@@ -32,8 +32,9 @@ import {
   updateProposal
 } from './proposalService';
 import { checkProposalStorage, uploadProposalMedia } from './mediaService';
+import { createVideoPoster, videoFirstFrameUrl } from './videoPoster';
 import { getEmbed } from './mediaEmbed';
-import { coverMediaLayout, editorialReferences } from './proposalMediaLayout';
+import { coverMediaLayout, editorialReferenceRows } from './proposalMediaLayout';
 import { validatePublication } from './proposalValidation';
 import { resolveProposalPeriod } from './proposalPeriod';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './proposalScripts';
@@ -43,7 +44,7 @@ import { TYPOGRAPHY_PRESETS, typographyVariables } from './proposalTypography';
 import { visibleProposalReferences } from './proposalReferences';
 
 const emptyPillar = { label: '', title: '', text: '' };
-const emptyReference = { pillar: '', title: '', handle: '', url: '', note: '' };
+const emptyReference = { pillar: '', title: '', handle: '', url: '', posterUrl: '', note: '' };
 const emptyPlan = { date: '', piece: '', type: '', pillar: '', topic: '', objective: '', status: '' };
 const emptyStep = { title: '', text: '' };
 const PALETTE_OPTIONS = [
@@ -537,6 +538,17 @@ function ProposalEditor({ id }) {
     }));
   }
 
+  function updateReferenceMedia(index, url, posterUrl = '') {
+    setProposal(prev => ({
+      ...prev,
+      references: prev.references.map((item, i) => i === index ? { ...item, url, posterUrl } : item)
+    }));
+  }
+
+  function updateCoverMedia(field, url, posterUrl = '') {
+    setProposal(prev => ({ ...prev, [field]: url, [field.replace('Url', 'PosterUrl')]: posterUrl }));
+  }
+
   function addArray(name, item) {
     setProposal(prev => ({ ...prev, [name]: [...prev[name], item] }));
   }
@@ -687,7 +699,8 @@ function ProposalEditor({ id }) {
             )}
             <CoverMediaEditor
               proposal={proposal}
-              onChange={updateField}
+              onChange={updateCoverMedia}
+              onPosterChange={updateField}
               activeUpload={activeUpload}
               setActiveUpload={setActiveUpload}
               storageUnavailable={storageCheck?.state === 'missing'}
@@ -835,11 +848,11 @@ function ProposalEditor({ id }) {
               <Textarea label="Introducción (opcional)" value={proposal.visualIntro || ''} onChange={v => updateField('visualIntro', v)} />
             </>}
           >
-            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : ''} disabled={Boolean(activeUpload)} />
+            <CompactItemList items={proposal.references} selectedIndex={activeReference} onSelect={setSelectedReference} labelFor={(item, i) => item.title || `Referencia ${i + 1}`} metaFor={item => item.url ? 'Archivo o enlace agregado' : 'Sin visual'} imageFor={item => item.posterUrl || (getEmbed(item.url).type === 'image' ? getEmbed(item.url).src : '')} disabled={Boolean(activeUpload)} />
             {activeReference >= 0 && <div className="compact-detail array-card">
                 <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
                 <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
-                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateArray('references', activeReference, 'url', v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
+                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateReferenceMedia(activeReference, v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
                 <MediaUploader
                   label="Subir imagen/video de referencia"
                   proposalId={proposal.id || proposal.slug}
@@ -847,8 +860,15 @@ function ProposalEditor({ id }) {
                   activeUpload={activeUpload}
                   setActiveUpload={setActiveUpload}
                   storageUnavailable={storageCheck?.state === 'missing'}
-                  onUploaded={url => updateArray('references', activeReference, 'url', url)}
+                  onUploaded={(url, posterUrl) => updateReferenceMedia(activeReference, url, posterUrl)}
                 />
+                {getEmbed(proposal.references[activeReference].url).type === 'video' && <div className="poster-editor">
+                  <small>Vista previa del video en celular. Las subidas nuevas la crean automáticamente.</small>
+                  <Input label="URL de miniatura (opcional)" value={proposal.references[activeReference].posterUrl || ''} onChange={v => updateArray('references', activeReference, 'posterUrl', v)} />
+                  <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug} uploadKey={`reference-poster-${activeReference}`}
+                    activeUpload={activeUpload} setActiveUpload={setActiveUpload} storageUnavailable={storageCheck?.state === 'missing'}
+                    onUploaded={url => updateArray('references', activeReference, 'posterUrl', url)} />
+                </div>}
                 <details className="item-options">
                   <summary>Contexto de la referencia (opcional)</summary>
                   <Input label="Categoría" value={proposal.references[activeReference].pillar} onChange={v => updateArray('references', activeReference, 'pillar', v)} />
@@ -936,12 +956,12 @@ function CompactItemList({ items, selectedIndex, onSelect, labelFor, metaFor, im
   </div>;
 }
 
-function CoverMediaEditor({ proposal, onChange, activeUpload, setActiveUpload, storageUnavailable }) {
+function CoverMediaEditor({ proposal, onChange, onPosterChange, activeUpload, setActiveUpload, storageUnavailable }) {
   const [selected, setSelected] = useState('heroMediaUrl');
   const visuals = [
-    { field: 'heroMediaUrl', key: 'cover-main', label: 'Visual principal', hint: 'También puedes pegar un enlace de YouTube o Vimeo.' },
-    { field: 'heroMediaBackUrl', key: 'cover-left', label: 'Visual izquierdo', hint: 'Si lo dejas vacío, usa la referencia visual 2.' },
-    { field: 'heroMediaFrontUrl', key: 'cover-right', label: 'Visual derecho', hint: 'Si lo dejas vacío, usa la referencia visual 3.' }
+    { field: 'heroMediaUrl', posterField: 'heroMediaPosterUrl', key: 'cover-main', label: 'Visual principal', hint: 'También puedes pegar un enlace de YouTube o Vimeo.' },
+    { field: 'heroMediaBackUrl', posterField: 'heroMediaBackPosterUrl', key: 'cover-left', label: 'Visual izquierdo', hint: 'Si lo dejas vacío, usa la referencia visual 2.' },
+    { field: 'heroMediaFrontUrl', posterField: 'heroMediaFrontPosterUrl', key: 'cover-right', label: 'Visual derecho', hint: 'Si lo dejas vacío, usa la referencia visual 3.' }
   ];
   return <div className="cover-media-editor">
     <strong className="cover-media-heading">Visuales de portada · imagen al centro</strong>
@@ -949,7 +969,7 @@ function CoverMediaEditor({ proposal, onChange, activeUpload, setActiveUpload, s
       {visuals.map(visual => {
         const embed = getEmbed(proposal[visual.field]);
         return <button type="button" key={visual.field} className={`cover-media-tile${selected === visual.field ? ' is-selected' : ''}`} onClick={() => setSelected(visual.field)} disabled={Boolean(activeUpload)} aria-pressed={selected === visual.field}>
-          <span className="cover-media-thumb">{embed.type === 'image' ? <img src={embed.src} alt="" loading="lazy" /> : embed.type === 'empty' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
+          <span className="cover-media-thumb">{proposal[visual.posterField] || embed.type === 'image' ? <img src={proposal[visual.posterField] || embed.src} alt="" loading="lazy" /> : embed.type === 'empty' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
           <span>{visual.label}</span>
           <small>{proposal[visual.field] ? 'Visual agregado' : proposal.references?.length ? 'Usa referencia' : 'Sin visual'}</small>
         </button>;
@@ -964,8 +984,15 @@ function CoverMediaEditor({ proposal, onChange, activeUpload, setActiveUpload, s
         activeUpload={activeUpload}
         setActiveUpload={setActiveUpload}
         storageUnavailable={storageUnavailable}
-        onUploaded={url => onChange(visual.field, url)}
+        onUploaded={(url, posterUrl) => onChange(visual.field, url, posterUrl)}
       />
+      {getEmbed(proposal[visual.field]).type === 'video' && <div className="poster-editor">
+        <small>Vista previa para celulares. Las subidas nuevas la crean automáticamente.</small>
+        <Input label="URL de miniatura (opcional)" value={proposal[visual.posterField] || ''} onChange={v => onPosterChange(visual.posterField, v)} />
+        <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug}
+          uploadKey={`${visual.key}-poster`} activeUpload={activeUpload} setActiveUpload={setActiveUpload}
+          storageUnavailable={storageUnavailable} onUploaded={url => onPosterChange(visual.posterField, url)} />
+      </div>}
     </div>)}
   </div>;
 }
@@ -1031,7 +1058,7 @@ function CalendarImporter({ onImport, existingCount = 0 }) {
 }
 
 
-function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, uploadKey, activeUpload, setActiveUpload, storageUnavailable = false }) {
+function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, uploadKey, activeUpload, setActiveUpload, storageUnavailable = false, imageOnly = false }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [bytesTransferred, setBytesTransferred] = useState(0);
@@ -1054,6 +1081,7 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
 
   async function handleFile(file) {
     if (!file) return;
+    if (imageOnly && !/^image\//.test(file.type)) { setMessage('Elige una imagen JPG, PNG o WebP para la miniatura.'); return; }
     if (activeUpload && activeUpload !== uploadKey) {
       setMessage('Termina o cancela la otra subida antes de elegir un archivo.');
       return;
@@ -1067,12 +1095,21 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
     startedAt.current = Date.now();
     setMessage('');
     try {
+      const isVideo = !imageOnly && /^video\//.test(file.type);
+      const posterPromise = isVideo ? createVideoPoster(file) : Promise.resolve(null);
       const url = await uploadProposalMedia(file, proposalId || 'propuesta', (percent, snapshot) => {
         setProgress(percent);
         setBytesTransferred(snapshot.bytesTransferred);
       }, task => { taskRef.current = task; });
-      onUploaded(url);
-      setMessage(file.name.toLowerCase().endsWith('.mov')
+      const posterFile = await posterPromise;
+      let posterUrl = '';
+      if (posterFile) {
+        posterUrl = await uploadProposalMedia(posterFile, proposalId || 'propuesta', () => {}, task => { taskRef.current = task; }).catch(() => '');
+      }
+      onUploaded(url, posterUrl);
+      setMessage(isVideo && !posterUrl
+        ? 'Video subido sin miniatura. Puedes subir una imagen en el campo de vista previa. Guarda la propuesta.'
+        : file.name.toLowerCase().endsWith('.mov')
         ? 'MOV subido como archivo. Se abre por enlace; para reproducir dentro de la propuesta usa MP4 H.264. Guarda la propuesta.'
         : 'Archivo subido. Guarda la propuesta para conservarlo.');
     } catch (err) {
@@ -1104,8 +1141,8 @@ function MediaUploader({ label = 'Subir archivo', proposalId, onUploaded, upload
       <label className="media-upload-box">
         <UploadCloud size={16} />
         <strong>{uploading ? progress === 100 ? 'Finalizando…' : `Subiendo ${progress}%` : storageUnavailable ? 'Storage pendiente' : blocked ? 'Espera la otra subida' : 'Seleccionar archivo'}</strong>
-        <small>{storageUnavailable ? 'Activa Storage arriba o pega una URL en el campo anterior.' : 'Un archivo a la vez · video hasta 500 MB. MP4 H.264/WebM se reproducen aquí; MOV se abre como archivo.'}</small>
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov" disabled={uploading || blocked || storageUnavailable} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
+        <small>{storageUnavailable ? 'Activa Storage arriba o pega una URL en el campo anterior.' : imageOnly ? 'Imagen JPG, PNG o WebP hasta 20 MB.' : 'Un archivo a la vez · video hasta 500 MB. MP4 H.264/WebM se reproducen aquí; MOV se abre como archivo.'}</small>
+        <input type="file" accept={imageOnly ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,.mov'} disabled={uploading || blocked || storageUnavailable} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; handleFile(file); }} />
       </label>
       {uploading && <>
         <div className="upload-progress"><progress value={progress} max="100" aria-label="Progreso de subida" /><button type="button" onClick={() => taskRef.current?.cancel()}>Cancelar</button></div>
@@ -1221,7 +1258,7 @@ function ProposalPage({ proposal, compact = false }) {
   const calendarNumber = showCalendar ? ++sectionCount : null;
   const visualNumber = showVisuals ? ++sectionCount : null;
   const cover = coverMediaLayout(proposal, references);
-  const referenceLayout = editorialReferences(references);
+  const referenceRows = editorialReferenceRows(references);
 
   return (
     <div className={`${compact ? 'proposal-page luxe-page compact-preview' : 'proposal-page luxe-page'}${proposal.themePreset === 'custom' && themeVars['--lux-red'] !== themeVars['--proposal-secondary'] ? ' dual-accent' : ''}`} style={{ ...themeVars, ...typographyVariables(proposal.typographyPreset) }}>
@@ -1367,14 +1404,9 @@ function ProposalPage({ proposal, compact = false }) {
             {proposal.visualIntro && <p>{proposal.visualIntro}</p>}
           </div>
           <div className="wrap luxe-reference-desktop">
-            {referenceLayout.featured && referenceLayout.remaining.length ? <div className="luxe-reference-editorial">
-              <ReferenceArticle refItem={referenceLayout.featured} featured />
-              <div className="luxe-reference-rail">
-                {referenceLayout.remaining.map((ref, i) => <ReferenceArticle refItem={ref} key={`${i}-${ref.url}`} />)}
-              </div>
-            </div> : <div className="luxe-reference-grid" style={{ '--reference-count': references.length === 4 ? 2 : Math.min(references.length, 3) }}>
-              {references.map((ref, i) => <ReferenceArticle refItem={ref} key={`${i}-${ref.url}`} />)}
-            </div>}
+            {referenceRows.map((row, index) => <div className={`luxe-reference-row count-${row.length}${index === 0 && getEmbed(row[0].url).type === 'image' ? ' has-featured' : ''}`} key={`${index}-${row[0]?.url}`}>
+              {row.map((ref, i) => <ReferenceArticle refItem={ref} featured={index === 0 && i === 0 && getEmbed(ref.url).type === 'image'} key={`${i}-${ref.url}`} />)}
+            </div>)}
           </div>
           <div className="wrap luxe-reference-mobile"><MediaCarousel items={references} /></div>
         </section>}
@@ -1437,6 +1469,7 @@ function LuxeMetric({ title, text }) {
 function VideoMockup({ refItem, label, inCover = false }) {
   const safe = refItem || {};
   const embed = getEmbed(safe.url);
+  const poster = getEmbed(safe.posterUrl).type === 'image' ? safe.posterUrl : undefined;
   const [playbackError, setPlaybackError] = useState(false);
   const [imageRatio, setImageRatio] = useState(null);
   useEffect(() => { setPlaybackError(false); setImageRatio(null); }, [safe.url]);
@@ -1447,7 +1480,7 @@ function VideoMockup({ refItem, label, inCover = false }) {
           const { naturalWidth, naturalHeight } = event.currentTarget;
           if (naturalWidth && naturalHeight) setImageRatio(naturalWidth / naturalHeight);
         }} />}
-        {embed.type === 'video' && !playbackError && <video src={embed.src} preload="metadata" playsInline controls
+        {embed.type === 'video' && !playbackError && <video src={poster ? embed.src : videoFirstFrameUrl(embed.src)} poster={poster} preload="metadata" playsInline controls
           onLoadedMetadata={event => {
             const { videoWidth, videoHeight } = event.currentTarget;
             if (videoWidth && videoHeight) setImageRatio(videoWidth / videoHeight);
@@ -1475,7 +1508,7 @@ function ReferenceCaption({ refItem }) {
 }
 
 function ReferenceArticle({ refItem, featured = false }) {
-  return <article className={`luxe-reference${featured ? ' is-featured' : ''}`}>
+  return <article className={`luxe-reference is-${getEmbed(refItem.url).type}${featured ? ' is-featured' : ''}`}>
     <VideoMockup refItem={refItem} label={refItem.pillar || 'Referencia visual'} />
     <ReferenceCaption refItem={refItem} />
   </article>;
@@ -1508,8 +1541,10 @@ function MediaCarousel({ items, inCover = false }) {
           return <button type="button" key={`${index}-${item.url}`} className={index === activeIndex ? 'is-active' : ''}
             aria-label={`Mostrar ${inCover ? 'visual de portada' : 'referencia'} ${index + 1}${item.title ? `: ${item.title}` : ''}`}
             aria-pressed={index === activeIndex} onClick={() => setSelected(index)}>
-            {embed.type === 'image' ? <img src={embed.src} alt="" loading="lazy" />
-              : embed.type === 'link' ? <ExternalLink size={20} aria-hidden="true" /> : <Film size={20} aria-hidden="true" />}
+            {embed.type === 'image' || getEmbed(item.posterUrl).type === 'image'
+              ? <img src={getEmbed(item.posterUrl).type === 'image' ? item.posterUrl : embed.src} alt="" loading="lazy" />
+              : embed.type === 'video' ? <video src={videoFirstFrameUrl(embed.src)} preload="metadata" muted playsInline aria-hidden="true" />
+                : embed.type === 'link' ? <ExternalLink size={20} aria-hidden="true" /> : <Film size={20} aria-hidden="true" />}
           </button>;
         })}
       </div>
