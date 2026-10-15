@@ -6,6 +6,7 @@ import { resolveProposalPeriod } from '../src/proposalPeriod.js';
 import { validatePublication } from '../src/proposalValidation.js';
 import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries, videoPlanEntries } from '../src/proposalScripts.js';
 import { buildProductionCalendarExport, generateProposalCalendar, rearrangeProposalCalendar } from '../src/proposalCalendar.js';
+import { buildCalendarImageLayout } from '../src/proposalCalendarImage.js';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from '../src/proposalTypography.js';
 import { visibleProposalReferences } from '../src/proposalReferences.js';
 
@@ -201,6 +202,29 @@ test('exporta un archivo independiente para Producción y rechaza fechas repetid
   assert.equal(data.items[1].scriptText, '');
   assert.deepEqual(data.period, { startDate: '2026-11-02', endDate: '2026-11-30' });
   assert.throws(() => buildProductionCalendarExport({ ...proposal, monthPlan: proposal.monthPlan.map(item => ({ ...item, date: '2026-11-02' })) }), /repetidos/);
+});
+
+test('el PNG conserva todas las piezas de un día y muestra las semanas completas del periodo', () => {
+  const proposal = {
+    clientName: 'Dra. Ejemplo', periodStart: '2026-10-12', periodEnd: '2026-11-12',
+    monthPlan: [
+      { date: '2026-10-15', piece: 'Reel 1', topic: 'Dolor de rodilla' },
+      { date: '2026-10-15', piece: 'Post 1', topic: 'Servicios' },
+      { date: '2026-10-15', piece: 'Foto 1', topic: 'Consultorio' },
+      { date: '2026-11-12', piece: 'Reel 2', topic: 'Paciente ideal' }
+    ]
+  };
+  const layout = buildCalendarImageLayout(proposal);
+  assert.equal(layout.cells.length, 35);
+  assert.equal(layout.cells[0].date, '2026-10-11');
+  assert.equal(layout.cells.at(-1).date, '2026-11-14');
+  assert.equal(layout.cells[0].inPeriod, false);
+  assert.equal(layout.cells.find(cell => cell.date === '2026-10-15').items.length, 3);
+  assert.deepEqual(layout.cells.find(cell => cell.date === '2026-10-15').items.map(item => item.video), [true, false, false]);
+  assert.equal(layout.pieces, 4);
+  assert.equal(layout.publicationDays, 2);
+  assert.throws(() => buildCalendarImageLayout({ ...proposal, monthPlan: [...proposal.monthPlan, { piece: 'Reel 3' }] }), /fecha/);
+  assert.throws(() => buildCalendarImageLayout({ ...proposal, periodStart: '2026-10-16' }), /periodo/);
 });
 
 test('enlaces de Firebase Storage, MOV y plataformas externas se manejan sin falsa reproducción', () => {
