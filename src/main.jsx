@@ -42,7 +42,7 @@ import { isVideoPiece, preserveVideoScripts, scriptedVideoEntries } from './prop
 import { CONTENT_COUNTS, buildProductionCalendarExport, countProposalPieces, generateProposalCalendar, rearrangeProposalCalendar } from './proposalCalendar';
 import { createProposalCalendarPng } from './proposalCalendarImage';
 import { TYPOGRAPHY_PRESETS, typographyVariables } from './proposalTypography';
-import { isReadableSlug, publicProposalPath } from './proposalPublicLink';
+import { isReadableSlug, publicProposalPath, suggestedProposalSlug } from './proposalPublicLink';
 import { visibleProposalReferences } from './proposalReferences';
 
 const emptyPillar = { label: '', title: '', text: '' };
@@ -495,7 +495,7 @@ function Dashboard() {
                 <div>
                   <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
                   <h3>{item.clientName || 'Sin nombre'}</h3>
-                  <p>{item.heroEyebrow || item.vertical || 'Propuesta'} · {item.showCalendar === false ? 'Solo producción · videos y guiones' : (() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
+                  <p>{item.vertical || 'Propuesta'} · {item.showCalendar === false ? 'Solo producción · videos y guiones' : (() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
                 </div>
                 <div className="row gap wrap-row">
                   <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
@@ -722,9 +722,12 @@ function ProposalEditor({ id }) {
             <h1>{proposal.clientName || 'Nueva propuesta'}</h1>
           </div>
 
-          <EditorSection title="Portada y estilo" {...accordion('cover', `${proposal.clientName || 'Sin cliente'} · ${proposal.heroEyebrow || 'Sin etiqueta'} · ${coverVisualCount} visuales`)}>
+          <EditorSection title="Portada y estilo" {...accordion('cover', `${proposal.clientName || 'Sin cliente'} · ${coverVisualCount} visuales`)}>
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
-            <Input label="Etiqueta de portada" value={proposal.heroEyebrow} onChange={v => updateField('heroEyebrow', v)} hint="Escribe «Ciclo 2 · noviembre» o el texto que quieras. No se agregan fechas automáticamente." />
+            <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
+            <p className="typography-help">{proposal.publicLinkReady
+              ? `Enlace público: ${publicProposalPath({ ...proposal, id })}. La dirección permanece aunque cambies la frase.`
+              : `Dirección sugerida al publicar: /${suggestedProposalSlug(proposal)}. Se formará con el cliente y la frase; si no hay frase, usará el mes del calendario.`}</p>
             <SelectField label="Contenido de la propuesta" value={productionOnly ? 'production' : 'calendar'} onChange={v => updateField('showCalendar', v === 'calendar')} options={[{ value: 'calendar', label: 'Con calendario editorial' }, { value: 'production', label: 'Solo producción · videos y guiones' }]} />
             <p className="typography-help">Solo producción muestra los videos con su desarrollo, sin fechas ni calendario. Puedes cambiar de formato sin perder las piezas guardadas.</p>
             <SelectField label="Paleta de acento" value={proposal.themePreset || 'wine'} onChange={v => updateField('themePreset', v)} options={PALETTE_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
@@ -748,11 +751,8 @@ function ProposalEditor({ id }) {
             <details className="editor-extra">
               <summary>Más opciones de portada</summary>
               <div className="field-grid">
-                <SelectField label="Tipo de propuesta" value={proposal.proposalType || 'monthly'} onChange={v => updateField('proposalType', v)} options={[{ value: 'monthly', label: 'Ciclo mensual' }, { value: 'initial', label: 'Primera propuesta · estrategia completa' }]} />
-                <Input label="Nombre en portada, si es distinto" value={proposal.clientDisplayName} onChange={v => updateField('clientDisplayName', v)} />
                 <Input label="Vertical / giro" value={proposal.vertical} onChange={v => updateField('vertical', v)} />
                 <Input label="Ciudad" value={proposal.city} onChange={v => updateField('city', v)} />
-                <Textarea label="Frase de portada (opcional)" value={proposal.positioning} onChange={v => updateField('positioning', v)} />
               </div>
             </details>
           </EditorSection>
@@ -892,7 +892,6 @@ function ProposalEditor({ id }) {
             {activeReference >= 0 && <div className="compact-detail array-card">
                 <div className="array-head"><b>Referencia {activeReference + 1}</b><button type="button" aria-label="Eliminar referencia" disabled={Boolean(activeUpload)} onClick={() => removeSelected('references', activeReference, setSelectedReference)}><Trash2 size={15} /></button></div>
                 <Input label="Título" value={proposal.references[activeReference].title} onChange={v => updateArray('references', activeReference, 'title', v)} />
-                <Input label="URL de imagen/video" value={proposal.references[activeReference].url} onChange={v => updateReferenceMedia(activeReference, v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
                 <MediaUploader
                   label="Subir imagen/video de referencia"
                   proposalId={proposal.id || proposal.slug}
@@ -902,9 +901,12 @@ function ProposalEditor({ id }) {
                   storageUnavailable={storageCheck?.state === 'missing'}
                   onUploaded={(url, posterUrl) => updateReferenceMedia(activeReference, url, posterUrl)}
                 />
+                <details className="item-options">
+                  <summary>Usar enlace externo (opcional)</summary>
+                  <Input label="Enlace de imagen o video" value={proposal.references[activeReference].url} onChange={v => updateReferenceMedia(activeReference, v)} hint="YouTube/Vimeo se reproducen aquí; Dropbox/Drive se abren por enlace." />
+                </details>
                 {getEmbed(proposal.references[activeReference].url).type === 'video' && <div className="poster-editor">
                   <small>Vista previa del video en celular. Las subidas nuevas la crean automáticamente.</small>
-                  <Input label="URL de miniatura (opcional)" value={proposal.references[activeReference].posterUrl || ''} onChange={v => updateArray('references', activeReference, 'posterUrl', v)} />
                   <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug} uploadKey={`reference-poster-${activeReference}`}
                     activeUpload={activeUpload} setActiveUpload={setActiveUpload} storageUnavailable={storageCheck?.state === 'missing'}
                     onUploaded={url => updateArray('references', activeReference, 'posterUrl', url)} />
@@ -1006,24 +1008,27 @@ function CompactItemList({ items, selectedIndex, onSelect, labelFor, metaFor, im
 function CoverMediaEditor({ proposal, onChange, onPosterChange, activeUpload, setActiveUpload, storageUnavailable }) {
   const [selected, setSelected] = useState('heroMediaUrl');
   const visuals = [
-    { field: 'heroMediaUrl', posterField: 'heroMediaPosterUrl', key: 'cover-main', label: 'Visual principal', hint: 'También puedes pegar un enlace de YouTube o Vimeo.' },
-    { field: 'heroMediaBackUrl', posterField: 'heroMediaBackPosterUrl', key: 'cover-left', label: 'Visual izquierdo', hint: 'Si lo dejas vacío, usa la referencia visual 2.' },
-    { field: 'heroMediaFrontUrl', posterField: 'heroMediaFrontPosterUrl', key: 'cover-right', label: 'Visual derecho', hint: 'Si lo dejas vacío, usa la referencia visual 3.' }
+    { field: 'heroMediaUrl', posterField: 'heroMediaPosterUrl', key: 'cover-main', label: 'Visual 1' },
+    { field: 'heroMediaBackUrl', posterField: 'heroMediaBackPosterUrl', key: 'cover-left', label: 'Visual 2' },
+    { field: 'heroMediaFrontUrl', posterField: 'heroMediaFrontPosterUrl', key: 'cover-right', label: 'Visual 3' }
   ];
   return <div className="cover-media-editor">
-    <strong className="cover-media-heading">Visuales de portada · imagen al centro</strong>
+    <strong className="cover-media-heading">Visuales de portada</strong>
+    <p className="typography-help">La primera imagen se coloca al centro; si sólo hay videos, el Visual 1 queda al centro.</p>
     <div className="cover-media-strip" role="group" aria-label="Visuales de portada">
-      {visuals.map(visual => {
-        const embed = getEmbed(proposal[visual.field]);
+      {visuals.map((visual, index) => {
+        const ownUrl = proposal[visual.field];
+        const fallback = proposal.references?.[index];
+        const embed = getEmbed(ownUrl || fallback?.url);
+        const poster = ownUrl ? proposal[visual.posterField] : fallback?.posterUrl;
         return <button type="button" key={visual.field} className={`cover-media-tile${selected === visual.field ? ' is-selected' : ''}`} onClick={() => setSelected(visual.field)} disabled={Boolean(activeUpload)} aria-pressed={selected === visual.field}>
-          <span className="cover-media-thumb">{proposal[visual.posterField] || embed.type === 'image' ? <img src={proposal[visual.posterField] || embed.src} alt="" loading="lazy" /> : embed.type === 'empty' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
+          <span className="cover-media-thumb">{poster || embed.type === 'image' ? <img src={poster || embed.src} alt="" loading="lazy" /> : embed.type === 'empty' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
           <span>{visual.label}</span>
-          <small>{proposal[visual.field] ? 'Visual agregado' : proposal.references?.length ? 'Usa referencia' : 'Sin visual'}</small>
+          <small>{ownUrl ? 'Visual agregado' : fallback?.url ? 'Usa referencia' : 'Sin visual'}</small>
         </button>;
       })}
     </div>
     {visuals.map(visual => <div key={visual.field} className="cover-media-fields" hidden={selected !== visual.field}>
-      <Input label={`URL de ${visual.label.toLowerCase()}`} value={proposal[visual.field] || ''} onChange={v => onChange(visual.field, v)} hint={visual.hint} />
       <MediaUploader
         label={`Subir ${visual.label.toLowerCase()}`}
         proposalId={proposal.id || proposal.slug}
@@ -1033,9 +1038,12 @@ function CoverMediaEditor({ proposal, onChange, onPosterChange, activeUpload, se
         storageUnavailable={storageUnavailable}
         onUploaded={(url, posterUrl) => onChange(visual.field, url, posterUrl)}
       />
+      <details className="item-options">
+        <summary>Usar enlace externo (opcional)</summary>
+        <Input label={`Enlace de ${visual.label.toLowerCase()}`} value={proposal[visual.field] || ''} onChange={v => onChange(visual.field, v)} hint="También puedes usar YouTube o Vimeo." />
+      </details>
       {getEmbed(proposal[visual.field]).type === 'video' && <div className="poster-editor">
         <small>Vista previa para celulares. Las subidas nuevas la crean automáticamente.</small>
-        <Input label="URL de miniatura (opcional)" value={proposal[visual.posterField] || ''} onChange={v => onPosterChange(visual.posterField, v)} />
         <MediaUploader label="Subir miniatura de este video" imageOnly proposalId={proposal.id || proposal.slug}
           uploadKey={`${visual.key}-poster`} activeUpload={activeUpload} setActiveUpload={setActiveUpload}
           storageUnavailable={storageUnavailable} onUploaded={url => onPosterChange(visual.posterField, url)} />
@@ -1254,7 +1262,7 @@ function PublicProposal({ slug }) {
 
   useEffect(() => {
     if (!proposal) return;
-    document.title = `Euphoria · Propuesta para ${proposal.clientDisplayName || proposal.clientName || 'ti'}`;
+    document.title = `Euphoria · Propuesta para ${proposal.clientName || proposal.clientDisplayName || 'ti'}`;
     return () => { document.title = 'Euphoria · Propuestas'; };
   }, [proposal]);
 
@@ -1321,8 +1329,7 @@ function ProposalPage({ proposal, compact = false }) {
 
         <div className="wrap luxe-hero-grid">
           <div className="luxe-hero-copy">
-            {proposal.heroEyebrow?.trim() && <div className="luxe-chip">{proposal.heroEyebrow}</div>}
-            <h1>{proposal.clientDisplayName || proposal.clientName}</h1>
+            <h1>{proposal.clientName || proposal.clientDisplayName}</h1>
             <p>{proposal.positioning}</p>
           </div>
 

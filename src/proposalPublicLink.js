@@ -15,13 +15,22 @@ export function isReadableSlug(value) {
 }
 
 export function suggestedProposalSlug(proposal) {
-  const name = slugify(proposal.clientName).slice(0, 55).replace(/-+$/g, '') || 'propuesta';
-  const label = slugify(proposal.heroEyebrow);
-  const month = MONTHS.find(item => label.split('-').includes(item));
+  const fullName = slugify(proposal.clientName);
+  const shortName = fullName.slice(0, 40);
+  const name = (fullName.length > 40 ? shortName.replace(/-[^-]*$/, '') : shortName) || 'propuesta';
+  const phraseWords = String(proposal.positioning || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    .split('-').filter(Boolean).slice(0, 6);
   const period = resolveProposalPeriod(proposal);
   const datedMonth = period.start ? MONTHS[Number(period.start.slice(5, 7)) - 1] : '';
-  const descriptor = month || datedMonth || label.replace(/^(?:propuesta-de-contenido|propuesta|ciclo-mensual)-?/, '') || `ciclo-${proposal.cycleNumber || 1}`;
-  return slugify(`${name}-${descriptor}`);
+  const descriptor = phraseWords.length ? phraseWords : (datedMonth ? [datedMonth] : ['ciclo', String(proposal.cycleNumber || 1)]);
+  const parts = [name];
+  for (const word of descriptor) {
+    if (`${parts.join('-')}-${word}`.length > 80) break;
+    parts.push(word);
+  }
+  return parts.length > 1 ? parts.join('-') : slugify(`${name}-${datedMonth || 'propuesta'}`);
 }
 
 export function* proposalSlugCandidates(proposal) {
