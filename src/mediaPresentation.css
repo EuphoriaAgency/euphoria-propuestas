@@ -194,3 +194,36 @@
 .poster-editor .media-upload-box {min-height:70px;padding:12px}
 .admin-shell .poster-editor {background:#24211e;border-color:var(--line)}
 .admin-shell .poster-editor>small {color:var(--ink-soft)}
+
+/* El editor muestra la propuesta dentro de una columna estrecha aunque la
+   ventana sea de escritorio. Estas reglas no se aplican a la página pública. */
+.compact-preview .luxe-reference-desktop .luxe-reference-row {
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));
+  gap:32px 20px;
+}
+.compact-preview .luxe-reference-row.count-3 > .luxe-reference:last-child {
+  grid-column:1/-1;
+  width:min(100%,320px);
+  justify-self:center;
+}
+.compact-preview .luxe-reference-desktop .luxe-reference {
+  grid-template-columns:minmax(0,1fr);
+  align-content:start;
+}
+.compact-preview .luxe-reference .luxe-media-frame {
+  max-width:300px;
+  max-height:400px;
+}
+.compact-preview .luxe-reference.is-video .luxe-media-frame {max-width:225px}
+.compact-preview .luxe-reference .luxe-reference-copy {
+  min-width:0;
+  max-width:300px;
+  width:100%;
+  margin-inline:auto;
+}
+.compact-preview .luxe-reference h3 {
+  font-size:clamp(18px,1.45vw,23px);
+  line-height:1.16;
+  overflow-wrap:anywhere;
+}
+.compact-preview .luxe-reference .luxe-reference-copy p {font-size:13px;line-height:1.45}
