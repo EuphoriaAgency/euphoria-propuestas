@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Euphoria · Propuestas</title>
     <meta name="description" content="Consulta la propuesta de contenido que Euphoria preparó para ti." />
+    <meta name="theme-color" content="#201c1b" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/propuestas-icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/propuestas-apple-touch-icon.png" />
+    <script>
+      if (location.pathname.startsWith('/admin')) {
+        const manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = '/propuestas-admin.webmanifest';
+        document.head.appendChild(manifest);
+      }
+    </script>
     <meta property="og:site_name" content="Euphoria" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Euphoria · Propuesta de contenido" />
