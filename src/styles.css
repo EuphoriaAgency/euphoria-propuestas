@@ -865,9 +865,9 @@ body{background:var(--paper);color:var(--ink)}
   color:color-mix(in srgb,var(--proposal-secondary) 42%,#fff);
 }
 .luxe-page .luxe-calendar-download{
-  background:linear-gradient(130deg,#1b1c1e,#242527);
-  border-color:#393a3d;
-  box-shadow:0 22px 66px rgba(0,0,0,.28);
+  background:transparent;
+  border-color:transparent;
+  box-shadow:none;
 }
 
 /* La portada pública y la vista previa mantienen la misma altura y el mismo pie. */
