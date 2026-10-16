@@ -25,7 +25,6 @@ import { createBlankProposal, defaultProposal, normalizeProposal } from './defau
 import {
   createProposal,
   deleteProposal,
-  duplicateProposal,
   ensurePublicLink,
   getProposalById,
   getPublicProposal,
@@ -437,15 +436,6 @@ function Dashboard() {
     }
   }
 
-  async function duplicate(item) {
-    try {
-      const id = await duplicateProposal(item);
-      window.location.href = `/admin/edit/${id}`;
-    } catch {
-      setError('No se pudo duplicar la propuesta.');
-    }
-  }
-
   async function remove(id) {
     const ok = confirm('¿Seguro que quieres eliminar esta propuesta?');
     if (!ok) return;
@@ -477,7 +467,7 @@ function Dashboard() {
           <div>
             <p className="eyebrow-red">Panel interno</p>
             <h1>Propuestas</h1>
-            <p className="muted">Crea propuestas, duplica plantillas y publica una URL única para cada cliente.</p>
+            <p className="muted">Crea propuestas y publica una URL única para cada cliente.</p>
           </div>
           <div className="row gap">
             <button className="btn btn-secondary" onClick={seedExample}>Cargar ejemplo Mabel</button>
@@ -490,22 +480,35 @@ function Dashboard() {
         {loading ? <LoadingScreen label="Cargando propuestas" /> : (
           <div className="proposal-list">
             {items.length === 0 && <div className="empty-state">No hay propuestas todavía. Crea una nueva o carga el ejemplo de la Dra. Mabel.</div>}
-            {items.map(item => (
-              <article className="proposal-row" key={item.id}>
-                <div>
-                  <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
-                  <h3>{item.clientName || 'Sin nombre'}</h3>
-                  <p>{item.vertical || 'Propuesta'} · {item.showCalendar === false ? 'Solo producción · videos y guiones' : (() => { const period = resolveProposalPeriod(item); return period.start && period.end ? `${period.start} → ${period.end}` : 'Calendario pendiente'; })()}</p>
-                </div>
-                <div className="row gap wrap-row">
-                  <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
-                  {item.status === 'published' && <a className="icon-btn" title="Abrir enlace público" href={publicProposalPath(item)} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver</a>}
-                  {item.status === 'published' && <button className="icon-btn" onClick={() => copyLink(item)}><Copy size={17} /> Copiar enlace</button>}
-                  <button className="icon-btn" onClick={() => duplicate(item)}><Copy size={17} /> Duplicar</button>
-                  <button className="icon-btn danger" onClick={() => remove(item.id)}><Trash2 size={17} /> Eliminar</button>
-                </div>
-              </article>
-            ))}
+            {items.map(item => {
+              const period = resolveProposalPeriod(item);
+              const proposalDetail = item.showCalendar === false
+                ? 'Solo producción · videos y guiones'
+                : period.start && period.end
+                  ? `${period.start} → ${period.end}`
+                  : 'Calendario pendiente';
+
+              return (
+                <details className="proposal-row" key={item.id}>
+                  <summary className="proposal-row-summary">
+                    <div className="proposal-row-copy">
+                      <h3>{item.clientName || 'Sin nombre'}</h3>
+                      <p>{item.vertical || 'Propuesta'} · {proposalDetail}</p>
+                    </div>
+                    <div className="proposal-row-side">
+                      <div className="proposal-status">{item.status === 'published' ? 'Publicada' : 'Borrador'}</div>
+                      <ChevronDown className="proposal-row-chevron" size={22} aria-hidden="true" />
+                    </div>
+                  </summary>
+                  <div className="proposal-row-actions">
+                    <a className="icon-btn" title="Editar" href={`/admin/edit/${item.id}`}><Save size={17} /> Editar</a>
+                    {item.status === 'published' && <a className="icon-btn" title="Abrir enlace público" href={publicProposalPath(item)} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver</a>}
+                    {item.status === 'published' && <button className="icon-btn" onClick={() => copyLink(item)}><Copy size={17} /> Copiar enlace</button>}
+                    <button className="icon-btn danger" onClick={() => remove(item.id)}><Trash2 size={17} /> Eliminar</button>
+                  </div>
+                </details>
+              );
+            })}
           </div>
         )}
       </main>
