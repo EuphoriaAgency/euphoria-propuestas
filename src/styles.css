@@ -14,6 +14,61 @@
   --r:16px;
   --shadow:0 20px 70px rgba(20,18,16,.08);
 }
+
+/* Listado compacto y desplegable del panel de propuestas. */
+.admin-shell .proposal-row{
+  display:block;
+  padding:0;
+  overflow:hidden;
+}
+.proposal-row-summary{
+  list-style:none;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:18px;
+  min-height:82px;
+  padding:16px 20px;
+  cursor:pointer;
+  user-select:none;
+}
+.proposal-row-summary::-webkit-details-marker{display:none}
+.proposal-row-summary:focus-visible{outline:2px solid #ff9f43;outline-offset:-3px;border-radius:17px}
+.proposal-row-copy{min-width:0}
+.proposal-row-copy h3{
+  margin:0 0 4px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.proposal-row-copy p{
+  margin:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.proposal-row-side{display:flex;align-items:center;gap:12px}
+.proposal-row-side .proposal-status{margin:0}
+.proposal-row-chevron{flex:0 0 auto;color:var(--ink-soft);transition:transform .2s ease,color .2s ease}
+.proposal-row[open] .proposal-row-summary{background:#181714;border-bottom:1px solid var(--line)}
+.proposal-row[open] .proposal-row-chevron{transform:rotate(180deg);color:#ff9f43}
+.proposal-row-actions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+  padding:14px 20px 18px;
+}
+.proposal-row-actions .icon-btn{justify-content:center;min-width:0}
+
+@media(max-width:700px){
+  .proposal-row-summary{min-height:76px;padding:14px;gap:10px}
+  .proposal-row-copy h3{font-size:18px}
+  .proposal-row-copy p{font-size:12px}
+  .proposal-row-side{gap:8px}
+  .proposal-row-side .proposal-status{font-size:9px;padding:4px 7px}
+  .proposal-row-actions{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px 14px 14px}
+  .proposal-row-actions .icon-btn{width:100%;padding:10px 8px}
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
