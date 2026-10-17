@@ -781,6 +781,10 @@ body{background:var(--paper);color:var(--ink)}
 .admin-shell .eyebrow-red,.editor-context>span{color:#ffa649;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 .editor-context{margin:2px 0 20px}
 .editor-context h1{margin-top:4px;overflow-wrap:anywhere}
+.editor-context-heading{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.editor-price-trigger{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;border:1px solid #4b4741;border-radius:999px;background:#171614;color:#f4eee7;padding:9px 14px;font:800 11px 'Manrope',system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
+.editor-price-trigger:hover,.editor-price-trigger.is-active{background:#2b211b;border-color:#b77837;color:#ffbd78}
+.editor-price-remove{display:inline-flex;align-items:center;gap:7px;margin-top:14px;border:0;background:transparent;color:var(--danger);font-weight:800;cursor:pointer}
 .admin-shell .btn{font-family:'Manrope',system-ui,sans-serif;text-transform:uppercase;letter-spacing:.07em;font-size:11px}
 .admin-shell .btn-primary{background:#e8d8c9;color:#0b0b0a}
 .admin-shell .btn-primary:hover{background:#fff0dd}
@@ -834,6 +838,18 @@ body{background:var(--paper);color:var(--ink)}
   .admin-brand strong{font-size:23px}
   .admin-brand small{font-size:9px}
   .admin-shell .admin-title-row h1,.admin-shell .editor-context h1{font-size:45px}
+  .editor-context-heading{align-items:flex-end}
+  .editor-price-trigger{padding:8px 11px;font-size:10px}
+}
+
+/* Cierre opcional de cotización: solo contiene los dos textos capturados. */
+.luxe-price-section{min-height:420px;display:grid;place-items:center}
+.luxe-price-section .wrap{width:100%;text-align:center}
+.luxe-price-section h2{max-width:900px;margin:0 auto 24px;overflow-wrap:anywhere}
+.luxe-price-section p{white-space:pre-line}
+.dual-accent .luxe-price-section::before{background:radial-gradient(circle,var(--hero-dark-glow,var(--hero-glow)),transparent 72%)!important}
+@media(max-width:640px){
+  .luxe-price-section{min-height:340px}
 }
 
 /* El segundo color personalizado acompaña a la propuesta completa.
