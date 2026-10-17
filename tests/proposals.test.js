@@ -116,6 +116,24 @@ test('un ciclo nuevo no toma textos ni piezas de la propuesta de ejemplo', () =>
   assert.equal(draft.scriptsTitle, 'Cada pieza, una idea clara.');
   assert.equal(draft.ctaTitle, '');
   assert.equal(draft.showCalendar, true);
+  assert.equal(draft.showPriceSection, false);
+  assert.equal(draft.priceTitle, '');
+});
+
+test('el precio es opcional y no revive el cierre heredado', () => {
+  const legacy = normalizeProposal({ ctaTitle: '¿Lista para empezar?', ctaText: 'Texto anterior' });
+  assert.equal(legacy.showPriceSection, false);
+  assert.equal(legacy.priceTitle, '');
+  assert.equal(legacy.priceNote, '');
+
+  const quotation = normalizeProposal({
+    showPriceSection: true,
+    priceTitle: '$15,000 MXN',
+    priceNote: 'Precio más IVA · Vigencia de 15 días.'
+  });
+  assert.equal(quotation.showPriceSection, true);
+  assert.equal(quotation.priceTitle, '$15,000 MXN');
+  assert.match(quotation.priceNote, /Vigencia/);
 });
 
 test('solo producción publica videos desarrollados sin fechas y conserva la opción de volver al calendario', () => {
@@ -159,6 +177,8 @@ test('duplicar conserva la identidad y el color, pero limpia los datos del ciclo
   assert.equal(next.scriptsTitle, 'Cada pieza, una idea clara.');
   assert.equal(next.heroMediaUrl, '');
   assert.equal(next.heroMediaPosterUrl, '');
+  assert.equal(next.showPriceSection, false);
+  assert.equal(next.priceTitle, '');
   assert.deepEqual(resolveProposalPeriod({ ...next, calendarImportPeriod: { startDate: '2026-10-01', endDate: '2026-10-31' } }), { start: '', end: '' });
 });
 
