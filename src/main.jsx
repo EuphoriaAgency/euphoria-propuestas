@@ -722,8 +722,27 @@ function ProposalEditor({ id }) {
 
           <div className="editor-context">
             <span>PROPUESTA · PANEL INTERNO</span>
-            <h1>{proposal.clientName || 'Nueva propuesta'}</h1>
+            <div className="editor-context-heading">
+              <h1>{proposal.clientName || 'Nueva propuesta'}</h1>
+              <button type="button" className={`editor-price-trigger${proposal.showPriceSection ? ' is-active' : ''}`} onClick={() => {
+                updateField('showPriceSection', true);
+                setOpenSection('price');
+              }}><Plus size={17} /> {proposal.showPriceSection ? 'Editar precio' : 'Precio'}</button>
+            </div>
           </div>
+
+          {proposal.showPriceSection && <EditorSection
+            title="Precio opcional"
+            {...accordion('price', proposal.priceTitle || 'Completa el título')}
+            hint="Esta sección solo se mostrará al final del enlace del cliente. No llevará etiqueta, número ni botón."
+          >
+            <Input label="Título principal" value={proposal.priceTitle || ''} onChange={v => updateField('priceTitle', v)} hint="Ejemplo: $15,000 MXN" />
+            <Textarea label="Texto secundario" value={proposal.priceNote || ''} onChange={v => updateField('priceNote', v)} rows={3} hint="Ejemplo: Precio más IVA · Vigencia de 15 días · Anticipo del 50%." />
+            <button type="button" className="editor-price-remove" onClick={() => {
+              updateField('showPriceSection', false);
+              setOpenSection('cover');
+            }}><Trash2 size={15} /> Quitar de la propuesta</button>
+          </EditorSection>}
 
           <EditorSection title="Portada y estilo" {...accordion('cover', `${proposal.clientName || 'Sin cliente'} · ${coverVisualCount} visuales`)}>
             <Input label="Nombre del cliente" value={proposal.clientName} onChange={v => updateField('clientName', v)} />
@@ -1300,6 +1319,7 @@ function ProposalPage({ proposal, compact = false }) {
   const showScripts = scriptedVideos.length > 0;
   const showCalendar = proposal.showCalendar !== false && primaryPlan.length > 0;
   const showSteps = !isMonthly && primarySteps.length > 0;
+  const showPrice = proposal.showPriceSection === true && Boolean(proposal.priceTitle?.trim() || proposal.priceNote?.trim());
   let sectionCount = 0;
   const introNumber = showIntro ? ++sectionCount : null;
   const systemNumber = showSystem ? ++sectionCount : null;
@@ -1460,6 +1480,13 @@ function ProposalPage({ proposal, compact = false }) {
             </div>)}
           </div>
           <div className="wrap luxe-reference-mobile"><MediaCarousel items={references} /></div>
+        </section>}
+
+        {showPrice && <section className="luxe-close luxe-price-section">
+          <div className="wrap">
+            {proposal.priceTitle?.trim() && <h2>{proposal.priceTitle}</h2>}
+            {proposal.priceNote?.trim() && <p>{proposal.priceNote}</p>}
+          </div>
         </section>}
       </main>
     </div>
